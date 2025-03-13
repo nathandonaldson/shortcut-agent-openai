@@ -1,5 +1,9 @@
 # Shortcut Enhancement System
 
+Vercel Domain: shortcut-agent-openai.vercel.app
+Local Tailscale URL: nathans-macbook-air.lamb-cobra.ts.net
+ngrok Domain: kangaroo-superb-cheaply.ngrok-free.app
+
 ## Project Overview
 
 The Shortcut Enhancement System is an intelligent, agent-based system that automatically improves Shortcut stories based on tags. The system supports two main workflows:
@@ -181,7 +185,7 @@ config = {
     },
     "log_level": "DEBUG",
     "timeout": 30,  # Longer timeouts for development
-    "webhook_base_url": "http://localhost:3000/api/webhook",
+    "webhook_base_url": "https://kangaroo-superb-cheaply.ngrok-free.app/api/webhook",
 }
 ```
 
@@ -573,14 +577,39 @@ if __name__ == "__main__":
 
 ### Local Tunnel for Webhook Testing
 
-Set up a local tunnel for webhook testing:
+There are multiple options for exposing your local server to receive webhooks:
+
+#### Option 1: Tailscale (if using Tailscale network)
+
+If you have Tailscale set up, you can use your Tailscale hostname:
+
+```
+http://nathans-macbook-air.lamb-cobra.ts.net:3000/api/webhook/[workspace]
+```
+
+#### Option 2: ngrok (recommended for public access)
+
+Use ngrok to create a temporary public URL:
+
+```bash
+# Install ngrok with Homebrew
+brew install ngrok
+
+# Start the webhook test server and ngrok in one command
+./scripts/start_webhook_server.sh
+
+# This will use the custom domain: https://kangaroo-superb-cheaply.ngrok-free.app
+# Use this URL in your webhook configuration: https://kangaroo-superb-cheaply.ngrok-free.app/api/webhook/[workspace]
+```
+
+#### Option 3: localtunnel (alternative to ngrok)
 
 ```bash
 # Install localtunnel
 npm install -g localtunnel
 
-# Start your Vercel dev server
-vercel dev
+# Start your server
+python scripts/test_webhooks.py
 
 # In another terminal, start localtunnel
 lt --port 3000 --subdomain shortcut-enhancement

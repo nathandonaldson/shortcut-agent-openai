@@ -1,0 +1,31 @@
+2025-03-14 11:12:35,574 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-14 11:12:35,574 - webhook_test - INFO - Webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-14 11:12:35,574 - webhook_test - INFO - Press Ctrl+C to stop the server
+2025-03-14 11:13:31,190 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 11:13:31,190 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_111331.json
+2025-03-14 11:27:25,436 - webhook_test - INFO - Server stopped by user
+2025-03-14 11:27:46,998 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-14 11:27:46,998 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-14 11:27:46,998 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-14 11:27:46,998 - webhook_test - INFO - For Tailscale, use: http://nathans-macbook-air.lamb-cobra.ts.net:3000/api/webhook/[workspace]
+2025-03-14 11:27:46,998 - webhook_test - INFO - Press Ctrl+C to stop the server
+2025-03-14 11:29:22,244 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-14 11:29:22,244 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-14 11:29:22,244 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-14 11:29:22,244 - webhook_test - INFO - For Tailscale, use: http://nathans-macbook-air.lamb-cobra.ts.net:3000/api/webhook/[workspace]
+2025-03-14 11:29:22,244 - webhook_test - INFO - Press Ctrl+C to stop the server
+2025-03-14 11:29:47,408 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-14 11:29:47,408 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '509', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-14 11:29:47,409 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 11:29:47,409 - webhook_test - INFO - Webhook data: {"id": "67d35c5a-1aae-4e18-a46d-e3307257c315", "changed_at": "2025-03-13T22:29:46.922Z", "version": "v1", "primary_id": 309, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 309, "entity_type": "story", "action": "update", "name": "Testing webhooks", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/309", "changes": {"label_ids": {"removes": [293]}}}], "references": [{"id": 293, "entity_type": "label", "name": "enhance", "app_url": "https://...
+2025-03-14 11:29:47,409 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_112947.json
+2025-03-14 11:29:49,570 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-14 11:29:49,571 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '509', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-14 11:29:49,571 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 11:29:49,571 - webhook_test - INFO - Webhook data: {"id": "67d35c5d-ffe4-4146-94ae-83df32657d0d", "changed_at": "2025-03-13T22:29:49.308Z", "version": "v1", "primary_id": 309, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 309, "entity_type": "story", "action": "update", "name": "Testing webhooks", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/309", "changes": {"label_ids": {"removes": [310]}}}], "references": [{"id": 310, "entity_type": "label", "name": "Analyse", "app_url": "https://...
+2025-03-14 11:29:49,571 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_112949.json
+2025-03-14 11:29:52,875 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-14 11:29:52,875 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '506', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-14 11:29:52,875 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 11:29:52,876 - webhook_test - INFO - Webhook data: {"id": "67d35c60-71e5-4cd6-9785-9267ed7b9674", "changed_at": "2025-03-13T22:29:52.428Z", "version": "v1", "primary_id": 309, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 309, "entity_type": "story", "action": "update", "name": "Testing webhooks", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/309", "changes": {"label_ids": {"adds": [310]}}}], "references": [{"id": 310, "entity_type": "label", "name": "Analyse", "app_url": "https://app...
+2025-03-14 11:29:52,876 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_112952.json

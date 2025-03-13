@@ -1,0 +1,36 @@
+{
+  "timestamp": "20250314_111331",
+  "workspace_id": "Workspace1",
+  "headers": {
+    "Host": "localhost:3000",
+    "User-Agent": "python-requests/2.32.3",
+    "Accept-Encoding": "gzip, deflate",
+    "Accept": "*/*",
+    "Connection": "keep-alive",
+    "Content-Type": "application/json",
+    "Content-Length": "331"
+  },
+  "data": {
+    "action": "update",
+    "changes": {
+      "labels": {
+        "adds": [
+          {
+            "name": "enhance"
+          }
+        ],
+        "removes": []
+      }
+    },
+    "primary_id": "12345",
+    "id": "12345",
+    "name": "Test Story",
+    "story_type": "feature",
+    "description": "This is a test story for webhook testing",
+    "resource": {
+      "id": "12345",
+      "entity_type": "story"
+    },
+    "timestamp": "2025-03-14T11:13:31.184139"
+  }
+}

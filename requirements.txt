@@ -1,0 +1,7 @@
+openai>=1.11.0
+openai-agents>=0.0.4
+python-dotenv>=1.0.0
+httpx>=0.26.0
+redis>=5.0.1
+python-json-logger>=2.0.7
+pydantic>=2.5.2

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Shortcut Enhancement System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #444;
+            margin-top: 30px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .api-endpoint {
+            background-color: #eef;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Shortcut Enhancement System</h1>
+    <p>Welcome to the Shortcut Enhancement System API. This service automatically improves Shortcut stories based on tags.</p>
+
+    <h2>Supported Workflows</h2>
+    <ul>
+        <li><strong>Full Enhancement</strong> - Tag a story with "enhance" to analyze and automatically improve it</li>
+        <li><strong>Analysis Only</strong> - Tag a story with "analyse" to get analysis without changes</li>
+    </ul>
+
+    <h2>API Endpoints</h2>
+    
+    <div class="api-endpoint">
+        <h3>Webhook Receiver</h3>
+        <p><code>POST /api/webhook/{workspace_id}</code></p>
+        <p>Receives webhook events from Shortcut and processes story updates with enhancement tags.</p>
+    </div>
+
+    <div class="api-endpoint">
+        <h3>Test Pipeline</h3>
+        <p><code>POST /api/test_pipeline</code></p>
+        <p>Test endpoint for running the enhancement pipeline without a webhook trigger.</p>
+        <pre>
+{
+  "workspace_id": "workspace1",
+  "story_id": "12345",
+  "workflow_type": "enhance" // or "analyse"
+}
+        </pre>
+    </div>
+
+    <h2>Setup Instructions</h2>
+    <p>To use this service with Shortcut:</p>
+    <ol>
+        <li>Configure a webhook in Shortcut pointing to <code>https://[your-domain]/api/webhook/{workspace_id}</code></li>
+        <li>Set the webhook to trigger on story updates (specifically label changes)</li>
+        <li>Tag stories with "enhance" or "analyse" to trigger the system</li>
+    </ol>
+
+    <p>For more information, see the <a href="https://github.com/yourusername/shortcut-enhancement">GitHub repository</a>.</p>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "buildCommand": "pip3 install -r requirements.txt",
+  "devCommand": "python3 -m http.server 3000",
+  "functions": {
+    "api/webhook/[workspace].py": {
+      "memory": 1024,
+      "maxDuration": 60
+    },
+    "api/process_task.py": {
+      "memory": 1024,
+      "maxDuration": 300
+    },
+    "api/test_pipeline.py": {
+      "memory": 1024,
+      "maxDuration": 300
+    }
+  }
+}

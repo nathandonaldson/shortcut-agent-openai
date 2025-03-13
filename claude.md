@@ -1,7 +1,6 @@
 # Shortcut Enhancement System
 
 Vercel Domain: shortcut-agent-openai.vercel.app
-Local Tailscale URL: nathans-macbook-air.lamb-cobra.ts.net
 ngrok Domain: kangaroo-superb-cheaply.ngrok-free.app
 
 ## Project Overview
@@ -579,15 +578,7 @@ if __name__ == "__main__":
 
 There are multiple options for exposing your local server to receive webhooks:
 
-#### Option 1: Tailscale (if using Tailscale network)
-
-If you have Tailscale set up, you can use your Tailscale hostname:
-
-```
-http://nathans-macbook-air.lamb-cobra.ts.net:3000/api/webhook/[workspace]
-```
-
-#### Option 2: ngrok (recommended for public access)
+#### Option 1: ngrok (recommended for public access)
 
 Use ngrok to create a temporary public URL:
 
@@ -602,7 +593,7 @@ brew install ngrok
 # Use this URL in your webhook configuration: https://kangaroo-superb-cheaply.ngrok-free.app/api/webhook/[workspace]
 ```
 
-#### Option 3: localtunnel (alternative to ngrok)
+#### Option 2: localtunnel (alternative to ngrok)
 
 ```bash
 # Install localtunnel

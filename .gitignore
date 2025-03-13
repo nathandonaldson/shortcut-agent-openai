@@ -1,2 +1,14 @@
 .vercel
 .env*
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+logs/*
+!logs/.gitkeep
+venv/
+.venv/
+env/
+.env/
+.idea/
+.vscode/

@@ -4,11 +4,10 @@ Triage Agent for determining how to process Shortcut stories.
 
 import os
 import logging
+import json
 from typing import Dict, Any, List, Optional
 
 from openai import OpenAI
-from openai.types.beta import Assistant
-from openai_agents import Agent, FunctionTool, HandoffTool
 
 from context.workspace.workspace_context import WorkspaceContext, WorkflowType
 from tools.shortcut.shortcut_tools import (
@@ -41,36 +40,19 @@ def get_triage_model() -> str:
     # Use environment variable with default fallback
     return os.environ.get("MODEL_TRIAGE", "gpt-3.5-turbo")
 
-def create_triage_agent() -> Agent:
-    """Create and configure the triage agent"""
+def create_triage_agent():
+    """Create and configure the triage agent (simplified version)"""
     
     model = get_triage_model()
     logger.info(f"Creating triage agent with model: {model}")
     
-    # Create function tools
-    tools = [
-        FunctionTool(
-            function=get_story_details,
-            description="Get details of a Shortcut story by ID",
-        ),
-        FunctionTool(
-            function=queue_enhancement_task,
-            description="Queue a story for full enhancement processing",
-        ),
-        FunctionTool(
-            function=queue_analysis_task,
-            description="Queue a story for analysis only (no modifications)",
-        )
-    ]
-    
-    # Create the agent
-    agent = Agent(
-        instructions=TRIAGE_SYSTEM_MESSAGE,
-        tools=tools,
-        model=model
-    )
-    
-    return agent
+    # In a real implementation, we would create an OpenAI Agents SDK agent
+    # For now, we'll just return a dummy object for local testing
+    return {
+        "name": "Triage Agent",
+        "model": model,
+        "instructions": TRIAGE_SYSTEM_MESSAGE
+    }
 
 async def process_webhook(webhook_data: Dict[str, Any], workspace_context: WorkspaceContext) -> Dict[str, Any]:
     """
@@ -85,18 +67,86 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
     """
     logger.info(f"Processing webhook for workspace: {workspace_context.workspace_id}")
     
-    # Create the triage agent
+    # Create the triage agent (simplified for local testing)
     triage_agent = create_triage_agent()
+    logger.info(f"Using triage agent: {triage_agent['name']} with model {triage_agent['model']}")
     
-    # Pass the webhook data to the agent
-    result = await triage_agent.run(
-        webhook_data,
-        context=workspace_context
-    )
+    # In a real implementation, we would use the OpenAI Agents SDK to run the agent
+    # For now, we'll implement simplified logic for testing
     
+    # Extract the story ID from the webhook data
+    story_id = str(webhook_data.get("id", ""))
+    if not story_id and "primary_id" in webhook_data:
+        story_id = str(webhook_data.get("primary_id", ""))
+    
+    logger.info(f"Processing story ID: {story_id}")
+    
+    # Check if this is a label update
+    changes = webhook_data.get("changes", {})
+    if "labels" not in changes:
+        logger.info("No label changes found in webhook data")
+        return {
+            "processed": False,
+            "reason": "No label changes found",
+            "workspace_id": workspace_context.workspace_id,
+            "story_id": story_id
+        }
+    
+    # Check for label additions
+    label_adds = changes.get("labels", {}).get("adds", [])
+    if not label_adds:
+        logger.info("No labels added in this update")
+        return {
+            "processed": False,
+            "reason": "No labels added",
+            "workspace_id": workspace_context.workspace_id,
+            "story_id": story_id
+        }
+    
+    # Check for specific labels
+    label_names = [label.get("name", "").lower() for label in label_adds]
+    logger.info(f"Labels added: {label_names}")
+    
+    # Determine workflow type based on labels
+    if "enhance" in label_names:
+        logger.info("Enhancement workflow triggered")
+        # Queue for enhancement
+        task_info = await queue_enhancement_task(
+            workspace_context.workspace_id,
+            story_id,
+            workspace_context.api_key
+        )
+        
+        return {
+            "processed": True,
+            "workflow": "enhance",
+            "task_info": task_info,
+            "workspace_id": workspace_context.workspace_id,
+            "story_id": story_id
+        }
+        
+    elif "analyse" in label_names or "analyze" in label_names:
+        logger.info("Analysis workflow triggered")
+        # Queue for analysis
+        task_info = await queue_analysis_task(
+            workspace_context.workspace_id,
+            story_id,
+            workspace_context.api_key
+        )
+        
+        return {
+            "processed": True,
+            "workflow": "analyse",
+            "task_info": task_info,
+            "workspace_id": workspace_context.workspace_id,
+            "story_id": story_id
+        }
+    
+    logger.info("No relevant labels found")
     return {
-        "processed": True,
-        "result": result,
+        "processed": False,
+        "reason": "No relevant labels found",
+        "labels": label_names,
         "workspace_id": workspace_context.workspace_id,
-        "story_id": workspace_context.story_id
+        "story_id": story_id
     }

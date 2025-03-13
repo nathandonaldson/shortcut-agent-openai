@@ -133,7 +133,6 @@ def run_server(port=3000):
         logger.info(f"Starting webhook test server on port {port}")
         logger.info(f"Local webhook URL: http://localhost:{port}/api/webhook/[workspace]")
         logger.info(f"Ping test URL: http://localhost:{port}/ping")
-        logger.info(f"For Tailscale, use: http://nathans-macbook-air.lamb-cobra.ts.net:{port}/api/webhook/[workspace]")
         logger.info(f"Press Ctrl+C to stop the server")
         
         try:

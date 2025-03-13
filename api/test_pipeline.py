@@ -1,11 +1,42 @@
 import json
 import os
-from typing import Dict, Any
+import logging
+import time
+from typing import Dict, Any, Optional
 
-# This is a test endpoint for the pipeline
-# It allows testing the full pipeline without a real webhook
+from context.workspace.workspace_context import WorkspaceContext, WorkflowType
+from agents.triage.triage_agent import process_webhook
+from tools.shortcut.shortcut_tools import get_story_details
 
-def handler(request):
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("test_pipeline")
+
+def get_api_key(workspace_id: str) -> str:
+    """
+    Get the API key for a specific workspace.
+    """
+    # Look for workspace-specific API key in environment variables
+    env_var_name = f"SHORTCUT_API_KEY_{workspace_id.upper()}"
+    api_key = os.environ.get(env_var_name)
+    
+    if not api_key:
+        # Fall back to generic API key
+        api_key = os.environ.get("SHORTCUT_API_KEY")
+        
+    if not api_key:
+        logger.error(f"No API key found for workspace: {workspace_id}")
+        raise ValueError(f"No API key found for workspace: {workspace_id}")
+        
+    return api_key
+
+async def handler(request):
+    """
+    Test endpoint for the pipeline.
+    
+    This allows testing the full pipeline without a real webhook.
+    It simulates a webhook event for the given parameters.
+    """
     # Parse the request body
     try:
         body = json.loads(request.body)
@@ -40,30 +71,81 @@ def handler(request):
         }
     
     # Run the test pipeline
-    result = run_test_pipeline(workspace_id, story_id, workflow_type)
-    
-    # Return the result
-    return {
-        "statusCode": 200,
-        "body": json.dumps({
-            "status": "completed",
-            "result": result
-        })
-    }
+    try:
+        result = await run_test_pipeline(workspace_id, story_id, workflow_type)
+        
+        # Return the result
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "status": "completed",
+                "result": result
+            })
+        }
+    except Exception as e:
+        logger.exception(f"Error running test pipeline: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({
+                "status": "error",
+                "error": str(e)
+            })
+        }
 
-def run_test_pipeline(workspace_id: str, story_id: str, workflow_type: str) -> Dict[str, Any]:
+async def run_test_pipeline(workspace_id: str, story_id: str, workflow_type: str) -> Dict[str, Any]:
     """
     Run a test pipeline for the given parameters.
-    This is a placeholder for actual implementation.
-    """
-    # In a real implementation, you would:
-    # 1. Create a simulated webhook payload
-    # 2. Create a context object
-    # 3. Run the triage agent
-    # 4. Return the result
     
-    # For now, just return a dummy result
-    return {
-        "status": "success",
-        "message": f"Test pipeline run for {workflow_type} on story {story_id} in workspace {workspace_id}"
-    }
+    This simulates a webhook event for a story with the specified workflow type.
+    """
+    start_time = time.time()
+    logger.info(f"Running test pipeline for {workflow_type} on story {story_id}")
+    
+    try:
+        # Get API key for the workspace
+        api_key = get_api_key(workspace_id)
+        
+        # Create workspace context
+        context = WorkspaceContext(
+            workspace_id=workspace_id,
+            api_key=api_key,
+            story_id=story_id
+        )
+        
+        # Get story details
+        story_data = await get_story_details(story_id, api_key)
+        context.set_story_data(story_data)
+        
+        # Create a simulated webhook payload
+        # This simulates a label being added to the story
+        webhook_payload = {
+            "action": "update",
+            "id": int(story_id),
+            "changes": {
+                "labels": {
+                    "adds": [{"name": workflow_type}]
+                }
+            },
+            "primary_id": int(story_id),
+            "references": []
+        }
+        
+        # Process the webhook with the triage agent
+        result = await process_webhook(webhook_payload, context)
+        
+        # Calculate processing time
+        processing_time = time.time() - start_time
+        logger.info(f"Test pipeline completed in {processing_time:.2f} seconds")
+        
+        return {
+            "status": "success",
+            "workspace_id": workspace_id,
+            "story_id": story_id,
+            "workflow_type": workflow_type,
+            "processing_time": f"{processing_time:.2f}s",
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error in test pipeline: {str(e)}")
+        raise

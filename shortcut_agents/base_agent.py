@@ -658,6 +658,11 @@ class BaseAgent(Generic[T, U]):
                 # Run the agent with the OpenAI Agent SDK
                 self.logger.info(f"Running {self.agent_name} with OpenAI Agent SDK")
                 
+                # Check for any Promise-related issues before attempting to run
+                if getattr(Runner, "run", None) is None:
+                    self.logger.warning("Runner.run method is None, falling back to simplified execution")
+                    return await self.run_simplified(input_data, workspace_context)
+                
                 # Execute with streaming if requested
                 if stream:
                     return await self.run_streaming(input_json, workspace_context)
@@ -672,12 +677,22 @@ class BaseAgent(Generic[T, U]):
                     )
                     
                     # Run with correct parameters for SDK version
-                    result = await Runner.run(
-                        starting_agent=self._agent,
-                        input=input_json,
-                        context=workspace_context,
-                        run_config=run_config
-                    )
+                    try:
+                        result = await Runner.run(
+                            starting_agent=self._agent,
+                            input=input_json,
+                            context=workspace_context,
+                            run_config=run_config
+                        )
+                    except Exception as e:
+                        if "'NoneType' object has no attribute 'resolve'" in str(e):
+                            # This specific error occurs when there's an issue with Promise/Future handling
+                            # It's likely due to an incompatibility with the current SDK version
+                            self.logger.warning(f"Caught SDK Promise error: {str(e)}, trying simplified execution")
+                            return await self.run_simplified(input_data, workspace_context)
+                        else:
+                            # Re-raise other errors
+                            raise
                     
                     # Extract the result from the response - SDK has a different structure
                     # The SDK's RunResult has a final_output property

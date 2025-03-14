@@ -20,6 +20,7 @@ from utils.logging.webhook import (
     extract_story_id,
     log_triage_decision
 )
+from utils.queue.task_queue import task_queue, Task, TaskType, TaskPriority
 
 # Create component logger
 logger = get_logger("webhook.handler")
@@ -186,28 +187,66 @@ async def handle_webhook(workspace_id: str, webhook_data: Dict[str, Any], reques
             # Get API key for the workspace
             api_key = get_api_key(workspace_id)
             
-            # Create workspace context with request ID
-            context = WorkspaceContext(
-                workspace_id=workspace_id,
-                api_key=api_key,
-                story_id=story_id
-            )
+            # Check if we should use the background worker or process inline
+            # Default to background processing
+            use_background = os.environ.get("USE_BACKGROUND_PROCESSING", "true").lower() in ("true", "1", "yes")
             
-            # Add request_id to context for correlation
-            context.request_id = request_id
-            
-            # Process the webhook with the triage agent
-            logger.info(f"Processing webhook with triage agent")
-            result = await process_webhook(webhook_data, context)
-            
-            # Log triage decision
-            log_triage_decision(
-                request_id=request_id,
-                workspace_id=workspace_id,
-                story_id=story_id,
-                decision=result.get("workflow", "unknown"),
-                triage_result=result
-            )
+            if use_background:
+                # Create a triage task in the queue
+                task = Task(
+                    workspace_id=workspace_id,
+                    story_id=story_id,
+                    task_type=TaskType.TRIAGE,
+                    priority=TaskPriority.HIGH,  # Triage tasks are high priority
+                    payload={
+                        "webhook_data": webhook_data,
+                        "request_id": request_id
+                    }
+                )
+                
+                # Add the task to the queue
+                logger.info(f"Queueing triage task for story {story_id}")
+                task_id = await task_queue.add_task(task)
+                
+                # Create a result that indicates the task was queued
+                result = {
+                    "task_id": task_id,
+                    "status": "queued",
+                    "message": "Webhook processing queued for background processing"
+                }
+                
+                # Log the queued decision
+                log_triage_decision(
+                    request_id=request_id,
+                    workspace_id=workspace_id,
+                    story_id=story_id,
+                    decision="queued",
+                    triage_result=result
+                )
+            else:
+                # Process inline (original behavior)
+                # Create workspace context with request ID
+                context = WorkspaceContext(
+                    workspace_id=workspace_id,
+                    api_key=api_key,
+                    story_id=story_id
+                )
+                
+                # Add request_id to context for correlation
+                context.request_id = request_id
+                
+                # Process the webhook with the triage agent
+                logger.info(f"Processing webhook with triage agent (inline)")
+                result = await process_webhook(webhook_data, context)
+                
+                # Log triage decision
+                log_triage_decision(
+                    request_id=request_id,
+                    workspace_id=workspace_id,
+                    story_id=story_id,
+                    decision=result.get("workflow", "unknown"),
+                    triage_result=result
+                )
             
             # Calculate processing time
             duration_ms = int((time.time() - start_time) * 1000)

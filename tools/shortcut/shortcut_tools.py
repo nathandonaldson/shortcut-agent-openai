@@ -238,33 +238,35 @@ async def queue_enhancement_task(workspace_id: str, story_id: str, api_key: str)
     Returns:
         Task information
     """
-    # Import here to avoid circular imports
-    from utils.storage.local_storage import local_storage
+    # Import task queue
+    from utils.queue.task_queue import task_queue, Task, TaskType, TaskPriority
     
     logger.info(f"Queueing enhancement task for story {story_id} in workspace {workspace_id}")
     
     # Get the story details
     story_data = await get_story_details(story_id, api_key)
     
-    # Create task data
-    task_data = {
-        "workspace_id": workspace_id,
-        "story_id": story_id,
-        "story_data": story_data,
-        "task_type": "enhancement",
-        "status": "queued",
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    }
+    # Create task for the queue
+    task = Task(
+        workspace_id=workspace_id,
+        story_id=story_id,
+        task_type=TaskType.ENHANCEMENT,
+        priority=TaskPriority.NORMAL,
+        payload={
+            "story_data": story_data,
+            "workflow_type": "enhance"
+        }
+    )
     
-    # Save the task
-    task_key = local_storage.save_task(workspace_id, story_id, task_data)
+    # Add the task to the queue
+    task_id = await task_queue.add_task(task)
     
-    # In a production system, you would actually queue this in a background job system
-    logger.info(f"Task queued with key: {task_key}")
+    logger.info(f"Enhancement task queued with ID: {task_id}")
     
     return {
-        "task_key": task_key,
-        "task_status": "queued"
+        "task_id": task_id,
+        "task_status": "queued",
+        "task_type": "enhancement"
     }
 
 async def queue_analysis_task(workspace_id: str, story_id: str, api_key: str) -> Dict[str, Any]:
@@ -279,31 +281,33 @@ async def queue_analysis_task(workspace_id: str, story_id: str, api_key: str) ->
     Returns:
         Task information
     """
-    # Import here to avoid circular imports
-    from utils.storage.local_storage import local_storage
+    # Import task queue
+    from utils.queue.task_queue import task_queue, Task, TaskType, TaskPriority
     
     logger.info(f"Queueing analysis task for story {story_id} in workspace {workspace_id}")
     
     # Get the story details
     story_data = await get_story_details(story_id, api_key)
     
-    # Create task data
-    task_data = {
-        "workspace_id": workspace_id,
-        "story_id": story_id,
-        "story_data": story_data,
-        "task_type": "analysis",
-        "status": "queued",
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    }
+    # Create task for the queue
+    task = Task(
+        workspace_id=workspace_id,
+        story_id=story_id,
+        task_type=TaskType.ANALYSIS,
+        priority=TaskPriority.NORMAL,
+        payload={
+            "story_data": story_data,
+            "workflow_type": "analyse"
+        }
+    )
     
-    # Save the task
-    task_key = local_storage.save_task(workspace_id, story_id, task_data)
+    # Add the task to the queue
+    task_id = await task_queue.add_task(task)
     
-    # In a production system, you would actually queue this in a background job system
-    logger.info(f"Task queued with key: {task_key}")
+    logger.info(f"Analysis task queued with ID: {task_id}")
     
     return {
-        "task_key": task_key,
-        "task_status": "queued"
+        "task_id": task_id,
+        "task_status": "queued",
+        "task_type": "analysis"
     }

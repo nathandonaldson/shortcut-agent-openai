@@ -1,0 +1,692 @@
+"""
+Worker implementation for the Shortcut Enhancement System.
+
+This module provides a background worker that processes tasks from the queue.
+"""
+
+import os
+import sys
+import json
+import time
+import asyncio
+import logging
+import signal
+import platform
+import traceback
+from datetime import datetime
+from typing import Dict, Any, Optional, List, Callable, Coroutine, Union, Set
+
+# Import task queue
+from utils.queue.task_queue import task_queue, Task, TaskType, TaskStatus, TaskPriority
+
+# Import workspace context
+from context.workspace.workspace_context import WorkspaceContext, WorkflowType
+
+# Import agent functions
+from shortcut_agents.triage.triage_agent import process_webhook
+from shortcut_agents.analysis.analysis_agent import create_analysis_agent
+from shortcut_agents.update.update_agent import create_update_agent
+
+# Import tools
+from tools.shortcut.shortcut_tools import get_story_details, add_comment, update_story
+
+# Set up logging
+logger = logging.getLogger("task_worker")
+
+class TaskWorker:
+    """
+    Background worker for processing tasks from the queue.
+    
+    This class implements a worker that polls the task queue for new tasks
+    and processes them using the appropriate agents.
+    """
+    
+    def __init__(
+        self,
+        worker_id: str = None,
+        polling_interval: float = 1.0,
+        shutdown_timeout: float = 10.0,
+        task_types: Optional[List[str]] = None
+    ):
+        """
+        Initialize the task worker.
+        
+        Args:
+            worker_id: Worker ID for tracking, defaults to hostname
+            polling_interval: Seconds between queue polls
+            shutdown_timeout: Seconds to wait for tasks to complete on shutdown
+            task_types: List of task types to process, defaults to all
+        """
+        # Generate worker ID if not provided
+        self.worker_id = worker_id or f"{platform.node()}-{os.getpid()}"
+        
+        # Configuration
+        self.polling_interval = polling_interval
+        self.shutdown_timeout = shutdown_timeout
+        self.task_types = task_types or [
+            TaskType.TRIAGE,
+            TaskType.ANALYSIS,
+            TaskType.ENHANCEMENT,
+            TaskType.UPDATE
+        ]
+        
+        # State
+        self.running = False
+        self.active_tasks: Set[str] = set()
+        self.stats = {
+            "tasks_processed": 0,
+            "tasks_succeeded": 0,
+            "tasks_failed": 0,
+            "start_time": None,
+            "last_task_time": None,
+        }
+        
+        # Register signal handlers
+        self._setup_signal_handlers()
+        
+        logger.info(f"Initialized TaskWorker {self.worker_id}")
+        logger.info(f"Processing task types: {self.task_types}")
+    
+    def _setup_signal_handlers(self):
+        """Set up signal handlers for graceful shutdown"""
+        if platform.system() == "Windows":
+            # Windows only supports SIGINT and SIGBREAK
+            signal.signal(signal.SIGINT, self._handle_shutdown_signal)
+            signal.signal(signal.SIGBREAK, self._handle_shutdown_signal)
+        else:
+            # Unix-like systems support more signals
+            signal.signal(signal.SIGINT, self._handle_shutdown_signal)
+            signal.signal(signal.SIGTERM, self._handle_shutdown_signal)
+            signal.signal(signal.SIGHUP, self._handle_shutdown_signal)
+    
+    def _handle_shutdown_signal(self, sig, frame):
+        """Handle shutdown signals gracefully"""
+        logger.info(f"Received shutdown signal {sig}, initiating graceful shutdown")
+        self.running = False
+    
+    async def start(self):
+        """Start the worker process"""
+        if self.running:
+            logger.warning("Worker already running")
+            return
+        
+        self.running = True
+        self.stats["start_time"] = datetime.utcnow().isoformat()
+        
+        logger.info(f"Starting worker {self.worker_id}")
+        
+        try:
+            await self._run_worker()
+        except Exception as e:
+            logger.error(f"Worker error: {str(e)}")
+            traceback.print_exc()
+        finally:
+            # Cleanup
+            logger.info("Worker cleanup")
+            await task_queue.close()
+    
+    async def stop(self):
+        """Stop the worker process"""
+        if not self.running:
+            logger.warning("Worker not running")
+            return
+        
+        logger.info(f"Stopping worker {self.worker_id}")
+        self.running = False
+        
+        # Wait for active tasks to complete
+        if self.active_tasks:
+            logger.info(f"Waiting for {len(self.active_tasks)} active tasks to complete")
+            
+            for _ in range(int(self.shutdown_timeout)):
+                if not self.active_tasks:
+                    break
+                await asyncio.sleep(1)
+            
+            if self.active_tasks:
+                logger.warning(f"Shutdown timeout reached with {len(self.active_tasks)} tasks still active")
+    
+    async def _run_worker(self):
+        """Main worker loop"""
+        logger.info(f"Worker {self.worker_id} running, polling interval: {self.polling_interval}s")
+        
+        while self.running:
+            try:
+                # Get the next task
+                task = await task_queue.get_next_task(self.task_types, self.worker_id)
+                
+                if task:
+                    # Process the task in the background
+                    self.active_tasks.add(task.task_id)
+                    asyncio.create_task(self._process_task(task))
+                else:
+                    # No tasks available, wait before polling again
+                    await asyncio.sleep(self.polling_interval)
+            
+            except Exception as e:
+                logger.error(f"Error in worker loop: {str(e)}")
+                # Continue running despite errors
+                await asyncio.sleep(self.polling_interval)
+    
+    async def _process_task(self, task: Task):
+        """
+        Process a task with the appropriate agent.
+        
+        Args:
+            task: The task to process
+        """
+        logger.info(f"Processing task {task.task_id} of type {task.task_type}")
+        self.stats["tasks_processed"] += 1
+        self.stats["last_task_time"] = datetime.utcnow().isoformat()
+        
+        try:
+            # Create the workspace context
+            context = self._create_context_from_task(task)
+            
+            # Process the task based on its type
+            if task.task_type == TaskType.TRIAGE:
+                result = await self._process_triage_task(task, context)
+            elif task.task_type == TaskType.ANALYSIS:
+                result = await self._process_analysis_task(task, context)
+            elif task.task_type == TaskType.ENHANCEMENT:
+                result = await self._process_enhancement_task(task, context)
+            else:
+                raise ValueError(f"Unsupported task type: {task.task_type}")
+            
+            # Mark the task as completed
+            await task_queue.complete_task(task, result, self.worker_id)
+            self.stats["tasks_succeeded"] += 1
+            
+            logger.info(f"Task {task.task_id} completed successfully")
+            
+        except Exception as e:
+            logger.error(f"Error processing task {task.task_id}: {str(e)}")
+            traceback.print_exc()
+            self.stats["tasks_failed"] += 1
+            
+            # Mark the task as failed
+            await task_queue.fail_task(task, str(e), True, self.worker_id)
+        
+        finally:
+            # Remove from active tasks
+            self.active_tasks.discard(task.task_id)
+    
+    def _create_context_from_task(self, task: Task) -> WorkspaceContext:
+        """
+        Create a workspace context from a task.
+        
+        Args:
+            task: The task to create context for
+            
+        Returns:
+            Workspace context
+        """
+        # Get API key from environment
+        api_key = os.environ.get(f"SHORTCUT_API_KEY_{task.workspace_id.upper()}")
+        if not api_key:
+            api_key = os.environ.get("SHORTCUT_API_KEY")
+        
+        if not api_key:
+            raise ValueError(f"No API key found for workspace {task.workspace_id}")
+        
+        # Create context
+        context = WorkspaceContext(
+            workspace_id=task.workspace_id,
+            api_key=api_key,
+            story_id=task.story_id
+        )
+        
+        # Set story data if available
+        if "story_data" in task.payload:
+            context.set_story_data(task.payload["story_data"])
+        
+        # Set the workflow type if specified
+        if "workflow_type" in task.payload:
+            workflow_type = task.payload["workflow_type"]
+            if workflow_type == "enhance":
+                context.set_workflow_type(WorkflowType.ENHANCE)
+            elif workflow_type in ["analyse", "analyze"]:
+                context.set_workflow_type(WorkflowType.ANALYSE)
+        
+        # Set request ID for tracing
+        context.request_id = task.task_id
+        
+        return context
+    
+    async def _process_triage_task(self, task: Task, context: WorkspaceContext) -> Dict[str, Any]:
+        """
+        Process a triage task.
+        
+        Args:
+            task: Triage task
+            context: Workspace context
+            
+        Returns:
+            Triage result
+        """
+        logger.info(f"Processing triage task for story {context.story_id}")
+        
+        # Get story data if not in context
+        if not context.story_data:
+            logger.info(f"Fetching story data for {context.story_id}")
+            story_data = await get_story_details(context.story_id, context.api_key)
+            context.set_story_data(story_data)
+        
+        # Process with triage agent
+        webhook_data = task.payload.get("webhook_data", {})
+        result = await process_webhook(webhook_data, context)
+        
+        # Schedule follow-up tasks based on workflow type
+        if context.workflow_type == WorkflowType.ENHANCE:
+            logger.info(f"Scheduling enhancement task for story {context.story_id}")
+            await self._schedule_enhancement_task(context)
+        elif context.workflow_type == WorkflowType.ANALYSE:
+            logger.info(f"Scheduling analysis task for story {context.story_id}")
+            await self._schedule_analysis_task(context)
+        
+        return result
+    
+    async def _process_analysis_task(self, task: Task, context: WorkspaceContext) -> Dict[str, Any]:
+        """
+        Process an analysis task.
+        
+        Args:
+            task: Analysis task
+            context: Workspace context
+            
+        Returns:
+            Analysis result
+        """
+        logger.info(f"Processing analysis task for story {context.story_id}")
+        
+        # Get story data if not in context
+        if not context.story_data:
+            logger.info(f"Fetching story data for {context.story_id}")
+            story_data = await get_story_details(context.story_id, context.api_key)
+            context.set_story_data(story_data)
+        
+        # Create analysis agent
+        analysis_agent = create_analysis_agent()
+        
+        # Run analysis
+        analysis_result = await analysis_agent.run(context.story_data, context)
+        
+        # Format the analysis as a comment
+        logger.info(f"Adding analysis results as a comment to story {context.story_id}")
+        comment_text = self._format_analysis_comment(analysis_result.get("result", {}), context)
+        
+        # Add comment to story
+        comment_result = await add_comment(context.story_id, context.api_key, comment_text)
+        
+        # Update story labels
+        if context.workflow_type == WorkflowType.ANALYSE:
+            logger.info(f"Updating labels for story {context.story_id} (analysis workflow)")
+            label_update = {
+                "labels": {
+                    "adds": [{"name": "analysed"}],
+                    "removes": [{"name": "analyse"}, {"name": "analyze"}]
+                }
+            }
+            
+            try:
+                await update_story(context.story_id, context.api_key, label_update)
+            except Exception as e:
+                logger.error(f"Error updating labels: {str(e)}")
+                # Continue despite label update errors
+        
+        # Return combined results
+        return {
+            "analysis": analysis_result.get("result", {}),
+            "comment_id": comment_result.get("id")
+        }
+    
+    async def _process_enhancement_task(self, task: Task, context: WorkspaceContext) -> Dict[str, Any]:
+        """
+        Process an enhancement task.
+        
+        Args:
+            task: Enhancement task
+            context: Workspace context
+            
+        Returns:
+            Enhancement result
+        """
+        logger.info(f"Processing enhancement task for story {context.story_id}")
+        
+        # Get story data if not in context
+        if not context.story_data:
+            logger.info(f"Fetching story data for {context.story_id}")
+            story_data = await get_story_details(context.story_id, context.api_key)
+            context.set_story_data(story_data)
+        
+        # Step 1: Run analysis if not already done
+        if not context.analysis_results:
+            logger.info(f"Running analysis for story {context.story_id}")
+            analysis_agent = create_analysis_agent()
+            analysis_result = await analysis_agent.run(context.story_data, context)
+            analysis_data = analysis_result.get("result", {})
+            
+            # Set analysis results in context
+            context.set_analysis_results(analysis_data)
+            
+            # Add analysis comment
+            logger.info(f"Adding analysis results as a comment to story {context.story_id}")
+            analysis_comment = self._format_analysis_comment(analysis_data, context)
+            await add_comment(context.story_id, context.api_key, analysis_comment)
+        else:
+            analysis_data = context.analysis_results
+        
+        # Step 2: Run update agent to generate enhancements
+        logger.info(f"Running update agent for story {context.story_id}")
+        update_agent = create_update_agent()
+        enhancement_input = {
+            "story_data": context.story_data,
+            "analysis_results": context.analysis_results
+        }
+        update_result = await update_agent.run(enhancement_input, context)
+        enhancement_data = update_result.get("result", {})
+        
+        # Step 3: Apply enhancements to the story
+        logger.info(f"Applying enhancements to story {context.story_id}")
+        
+        # Prepare update data
+        update_data = {}
+        if "enhanced_title" in enhancement_data and enhancement_data["enhanced_title"]:
+            update_data["name"] = enhancement_data["enhanced_title"]
+        
+        if "enhanced_description" in enhancement_data and enhancement_data["enhanced_description"]:
+            update_data["description"] = enhancement_data["enhanced_description"]
+        
+        # Update the story if we have changes
+        update_story_result = None
+        if update_data:
+            logger.info(f"Updating story content: {update_data.keys()}")
+            try:
+                update_story_result = await update_story(context.story_id, context.api_key, update_data)
+            except Exception as e:
+                logger.error(f"Error updating story content: {str(e)}")
+                # Continue despite update errors
+        
+        # Step 4: Add enhancement comment
+        logger.info(f"Adding enhancement summary comment to story {context.story_id}")
+        enhancement_comment = self._format_enhancement_comment(enhancement_data)
+        comment_result = await add_comment(context.story_id, context.api_key, enhancement_comment)
+        
+        # Step 5: Update story labels
+        logger.info(f"Updating labels for story {context.story_id} (enhancement workflow)")
+        label_update = {
+            "labels": {
+                "adds": [{"name": "enhanced"}],
+                "removes": [{"name": "enhance"}, {"name": "enhancement"}]
+            }
+        }
+        
+        try:
+            await update_story(context.story_id, context.api_key, label_update)
+        except Exception as e:
+            logger.error(f"Error updating labels: {str(e)}")
+            # Continue despite label update errors
+        
+        # Return results
+        return {
+            "analysis": analysis_data,
+            "enhancement": enhancement_data,
+            "updated_fields": list(update_data.keys()) if update_data else [],
+            "comment_id": comment_result.get("id") if comment_result else None
+        }
+    
+    async def _schedule_analysis_task(self, context: WorkspaceContext):
+        """
+        Schedule an analysis task.
+        
+        Args:
+            context: Workspace context
+        """
+        task = Task(
+            workspace_id=context.workspace_id,
+            story_id=context.story_id,
+            task_type=TaskType.ANALYSIS,
+            priority=TaskPriority.NORMAL,
+            payload={
+                "story_data": context.story_data,
+                "workflow_type": "analyse"
+            }
+        )
+        
+        await task_queue.add_task(task)
+    
+    async def _schedule_enhancement_task(self, context: WorkspaceContext):
+        """
+        Schedule an enhancement task.
+        
+        Args:
+            context: Workspace context
+        """
+        task = Task(
+            workspace_id=context.workspace_id,
+            story_id=context.story_id,
+            task_type=TaskType.ENHANCEMENT,
+            priority=TaskPriority.NORMAL,
+            payload={
+                "story_data": context.story_data,
+                "workflow_type": "enhance"
+            }
+        )
+        
+        await task_queue.add_task(task)
+    
+    def _format_analysis_comment(self, analysis_results: Dict[str, Any], context: WorkspaceContext) -> str:
+        """
+        Format analysis results as a Markdown comment.
+        
+        Args:
+            analysis_results: Analysis results
+            context: Workspace context
+            
+        Returns:
+            Formatted comment text
+        """
+        # Start building the comment
+        comment = f"## 📊 Story Analysis Results\n\n"
+        
+        # Overall score
+        overall_score = analysis_results.get('overall_score', 'N/A')
+        comment += f"**Overall Quality Score**: {overall_score}/10\n\n"
+        
+        # Summary
+        summary = analysis_results.get('summary', 'No summary provided')
+        comment += f"### Summary\n{summary}\n\n"
+        
+        # Title analysis
+        title_analysis = analysis_results.get('title_analysis', {})
+        if title_analysis:
+            title_score = title_analysis.get('score', 'N/A')
+            comment += f"### Title Analysis\n**Score**: {title_score}/10\n\n"
+            
+            strengths = title_analysis.get('strengths', [])
+            if strengths:
+                comment += "**Strengths**:\n"
+                for strength in strengths:
+                    comment += f"- {strength}\n"
+                comment += "\n"
+                
+            weaknesses = title_analysis.get('weaknesses', [])
+            if weaknesses:
+                comment += "**Weaknesses**:\n"
+                for weakness in weaknesses:
+                    comment += f"- {weakness}\n"
+                comment += "\n"
+                
+            recommendations = title_analysis.get('recommendations', [])
+            if recommendations:
+                comment += "**Recommendations**:\n"
+                for rec in recommendations:
+                    comment += f"- {rec}\n"
+                comment += "\n"
+        
+        # Description analysis
+        desc_analysis = analysis_results.get('description_analysis', {})
+        if desc_analysis:
+            desc_score = desc_analysis.get('score', 'N/A')
+            comment += f"### Description Analysis\n**Score**: {desc_score}/10\n\n"
+            
+            strengths = desc_analysis.get('strengths', [])
+            if strengths:
+                comment += "**Strengths**:\n"
+                for strength in strengths:
+                    comment += f"- {strength}\n"
+                comment += "\n"
+                
+            weaknesses = desc_analysis.get('weaknesses', [])
+            if weaknesses:
+                comment += "**Weaknesses**:\n"
+                for weakness in weaknesses:
+                    comment += f"- {weakness}\n"
+                comment += "\n"
+                
+            recommendations = desc_analysis.get('recommendations', [])
+            if recommendations:
+                comment += "**Recommendations**:\n"
+                for rec in recommendations:
+                    comment += f"- {rec}\n"
+                comment += "\n"
+        
+        # Acceptance criteria analysis
+        ac_analysis = analysis_results.get('acceptance_criteria_analysis', {})
+        if ac_analysis:
+            ac_score = ac_analysis.get('score', 'N/A')
+            comment += f"### Acceptance Criteria Analysis\n**Score**: {ac_score}/10\n\n"
+            
+            strengths = ac_analysis.get('strengths', [])
+            if strengths:
+                comment += "**Strengths**:\n"
+                for strength in strengths:
+                    comment += f"- {strength}\n"
+                comment += "\n"
+                
+            weaknesses = ac_analysis.get('weaknesses', [])
+            if weaknesses:
+                comment += "**Weaknesses**:\n"
+                for weakness in weaknesses:
+                    comment += f"- {weakness}\n"
+                comment += "\n"
+                
+            recommendations = ac_analysis.get('recommendations', [])
+            if recommendations:
+                comment += "**Recommendations**:\n"
+                for rec in recommendations:
+                    comment += f"- {rec}\n"
+                comment += "\n"
+        
+        # Priority areas
+        priority_areas = analysis_results.get('priority_areas', [])
+        if priority_areas:
+            comment += "### Priority Areas for Improvement\n"
+            for area in priority_areas:
+                comment += f"- {area}\n"
+            comment += "\n"
+        
+        # Add footer
+        comment += "\n---\n"
+        comment += "Powered by Shortcut Enhancement System | "
+        comment += f"[View Story](https://app.shortcut.com/{context.workspace_id}/story/{context.story_id})"
+        
+        return comment
+    
+    def _format_enhancement_comment(self, enhancement_data: Dict[str, Any]) -> str:
+        """
+        Format enhancement results as a Markdown comment.
+        
+        Args:
+            enhancement_data: Enhancement data
+            
+        Returns:
+            Formatted comment text
+        """
+        # Start building the comment
+        comment = "## ✨ Story Enhancement Applied\n\n"
+        comment += "This story has been enhanced to improve clarity, structure, and completeness.\n\n"
+        
+        # List changes made
+        changes = enhancement_data.get("changes_made", [])
+        if changes:
+            comment += "### Changes Made\n"
+            for change in changes:
+                if change:  # Only add non-empty changes
+                    comment += f"- {change}\n"
+            comment += "\n"
+        
+        # Add footer
+        comment += "\n_Enhanced by the Shortcut Enhancement System_"
+        
+        return comment
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get worker statistics.
+        
+        Returns:
+            Dictionary with worker statistics
+        """
+        # Calculate uptime
+        uptime_seconds = 0
+        if self.stats["start_time"]:
+            start_time = datetime.fromisoformat(self.stats["start_time"])
+            uptime_seconds = (datetime.utcnow() - start_time).total_seconds()
+        
+        # Add real-time stats
+        stats = self.stats.copy()
+        stats.update({
+            "worker_id": self.worker_id,
+            "running": self.running,
+            "active_tasks": len(self.active_tasks),
+            "uptime_seconds": uptime_seconds,
+            "task_types": self.task_types
+        })
+        
+        return stats
+
+async def run_worker(worker_id: str = None, polling_interval: float = 1.0):
+    """
+    Run a worker process.
+    
+    Args:
+        worker_id: Worker ID for tracking
+        polling_interval: Seconds between queue polls
+    """
+    worker = TaskWorker(worker_id=worker_id, polling_interval=polling_interval)
+    
+    try:
+        await worker.start()
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, stopping worker")
+    finally:
+        await worker.stop()
+
+def main():
+    """Main entry point for the worker process"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Task Worker for Shortcut Enhancement System")
+    parser.add_argument("--worker-id", help="Worker ID for tracking")
+    parser.add_argument("--polling-interval", type=float, default=1.0, help="Seconds between queue polls")
+    parser.add_argument("--task-types", help="Comma-separated list of task types to process")
+    
+    args = parser.parse_args()
+    
+    # Set up logging
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO"),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    
+    # Parse task types
+    task_types = None
+    if args.task_types:
+        task_types = [t.strip() for t in args.task_types.split(",")]
+    
+    # Run the worker
+    asyncio.run(run_worker(args.worker_id, args.polling_interval))
+
+if __name__ == "__main__":
+    main()

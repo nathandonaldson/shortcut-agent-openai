@@ -145,7 +145,11 @@ class TaskQueueManager:
     
     def _get_queue_key(self, task_type: str) -> str:
         """Get the Redis key for a queue by task type"""
-        return f"{self.queue_prefix}{task_type}"
+        # Make sure we're using the pending queue prefix + task type
+        # Our worker looks for task_queue:pending by default
+        key = f"{self.queue_prefix}{TaskStatus.PENDING}"
+        logger.info(f"Generated queue key: {key}, wanted for task type: {task_type}")
+        return key
     
     def _get_processing_key(self, worker_id: str) -> str:
         """Get the Redis key for processing tasks by worker"""
@@ -174,11 +178,22 @@ class TaskQueueManager:
         queue_key = self._get_queue_key(task.task_type)
         task_key = self._get_task_key(task.task_id)
         
+        # Debug logs
+        logger.info(f"Task key: {task_key}")
+        logger.info(f"Queue key: {queue_key}")
+        
         # Store the task data
         await redis.set(task_key, task_data)
         
         # Add to the appropriate queue with priority as score (lower = higher priority)
-        await redis.zadd(queue_key, {task.task_id: task.priority})
+        try:
+            await redis.zadd(queue_key, {task.task_id: task.priority})
+            logger.info(f"Successfully added task {task.task_id} to queue {queue_key}")
+        except Exception as e:
+            logger.error(f"Error adding task to queue: {str(e)}")
+            # Let's try with the pending queue specifically
+            await redis.zadd("task_queue:pending", {task.task_id: task.priority})
+            logger.info(f"Added task to generic pending queue as fallback")
         
         logger.info(f"Added task {task.task_id} to queue {task.task_type} with priority {task.priority}")
         

@@ -8,6 +8,7 @@ import json
 import logging
 from typing import Dict, Any, Optional, List, Callable
 import time
+import asyncio
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -31,94 +32,153 @@ MOCK_STORY = {
 
 def is_development_mode() -> bool:
     """Check if the system is running in development mode"""
-    return os.environ.get("VERCEL_ENV", "development") == "development"
+    return os.environ.get("VERCEL_ENV", "development") == "development" and not os.environ.get("USE_REAL_SHORTCUT", "").lower() in ("true", "1", "yes")
+
+class RealShortcutClient:
+    """Real implementation of Shortcut client using API requests"""
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.headers = {"Content-Type": "application/json", "Shortcut-Token": api_key}
+        self.base_url = "https://api.app.shortcut.com/api/v3"
+        
+    async def get_story(self, story_id: str) -> Dict[str, Any]:
+        """Get a story by ID"""
+        logger.info(f"Getting story from Shortcut API: {story_id}")
+        
+        import aiohttp
+        
+        url = f"{self.base_url}/stories/{story_id}"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=self.headers) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Error getting story {story_id}: {response.status} {error_text}")
+                    raise Exception(f"Failed to get story: {response.status}")
+    
+    async def update_story(self, story_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a story"""
+        logger.info(f"Updating story in Shortcut API: {story_id}")
+        logger.debug(f"Update data: {json.dumps(data, indent=2)}")
+        
+        import aiohttp
+        
+        url = f"{self.base_url}/stories/{story_id}"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.put(url, headers=self.headers, json=data) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Error updating story {story_id}: {response.status} {error_text}")
+                    raise Exception(f"Failed to update story: {response.status}")
+    
+    async def create_comment(self, story_id: str, text: str) -> Dict[str, Any]:
+        """Create a comment on a story"""
+        logger.info(f"Creating comment on story in Shortcut API: {story_id}")
+        
+        import aiohttp
+        
+        url = f"{self.base_url}/stories/{story_id}/comments"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=self.headers, json={"text": text}) as response:
+                if response.status == 201:
+                    return await response.json()
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Error creating comment on story {story_id}: {response.status} {error_text}")
+                    raise Exception(f"Failed to create comment: {response.status}")
+
+class MockShortcutClient:
+    """Mock implementation of Shortcut client for local development"""
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+    
+    async def get_story(self, story_id: str) -> Dict[str, Any]:
+        """Mock implementation of get_story"""
+        logger.info(f"[MOCK] Getting story: {story_id}")
+        time.sleep(0.5)  # Simulate API delay
+        
+        # Return a copy of the mock story with the requested ID
+        story = MOCK_STORY.copy()
+        
+        # Handle both string and integer IDs
+        try:
+            story_id_int = int(story_id)
+            story["id"] = story_id_int
+        except (ValueError, TypeError):
+            # If we can't convert to int, just use the string ID
+            story["id"] = story_id
+        
+        return story
+    
+    async def update_story(self, story_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Mock implementation of update_story"""
+        logger.info(f"[MOCK] Updating story: {story_id}")
+        logger.info(f"[MOCK] Update data: {json.dumps(data, indent=2)}")
+        time.sleep(0.5)  # Simulate API delay
+        
+        # Return a copy of the mock story with updates applied
+        story = MOCK_STORY.copy()
+        
+        # Handle both string and integer IDs
+        try:
+            story_id_int = int(story_id)
+            story["id"] = story_id_int
+        except (ValueError, TypeError):
+            # If we can't convert to int, just use the string ID
+            story["id"] = story_id
+        
+        story.update(data)
+        
+        # Updated timestamp
+        story["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        
+        return story
+    
+    async def create_comment(self, story_id: str, text: str) -> Dict[str, Any]:
+        """Mock implementation of create_comment"""
+        logger.info(f"[MOCK] Creating comment on story: {story_id}")
+        logger.info(f"[MOCK] Comment text: {text}")
+        time.sleep(0.5)  # Simulate API delay
+        
+        # Handle both string and integer IDs
+        try:
+            story_id_int = int(story_id)
+        except (ValueError, TypeError):
+            # If we can't convert to int, just use the string ID
+            story_id_int = story_id
+        
+        return {
+            "id": 98765,
+            "text": text,
+            "story_id": story_id_int,
+            "author_id": "user-system",
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        }
 
 def get_shortcut_client(api_key: str):
     """
     Get a Shortcut API client.
-    This is a placeholder - in a real implementation, you would initialize 
-    a proper API client. For now, we'll just return a dictionary of mocked functions.
+    
+    Args:
+        api_key: The Shortcut API key
+        
+    Returns:
+        A Shortcut client instance
     """
     if is_development_mode():
         logger.info("Using mock Shortcut client for development")
-        
-        # Return mock client functions
-        return {
-            "get_story": mock_get_story,
-            "update_story": mock_update_story,
-            "create_comment": mock_create_comment
-        }
+        return MockShortcutClient(api_key)
     else:
-        # In production, you would create a real client
-        # This is a placeholder - you would use a proper Shortcut API library
         logger.info("Using real Shortcut client")
-        
-        raise NotImplementedError("Real Shortcut client not implemented yet")
-
-# Mock functions for local development
-
-def mock_get_story(story_id: str) -> Dict[str, Any]:
-    """Mock function to get a story by ID"""
-    logger.info(f"[MOCK] Getting story: {story_id}")
-    time.sleep(0.5)  # Simulate API delay
-    
-    # Return a copy of the mock story with the requested ID
-    story = MOCK_STORY.copy()
-    
-    # Handle both string and integer IDs
-    try:
-        story_id_int = int(story_id)
-        story["id"] = story_id_int
-    except (ValueError, TypeError):
-        # If we can't convert to int, just use the string ID
-        story["id"] = story_id
-    
-    return story
-
-def mock_update_story(story_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Mock function to update a story"""
-    logger.info(f"[MOCK] Updating story: {story_id}")
-    logger.info(f"[MOCK] Update data: {json.dumps(data, indent=2)}")
-    time.sleep(0.5)  # Simulate API delay
-    
-    # Return a copy of the mock story with updates applied
-    story = MOCK_STORY.copy()
-    
-    # Handle both string and integer IDs
-    try:
-        story_id_int = int(story_id)
-        story["id"] = story_id_int
-    except (ValueError, TypeError):
-        # If we can't convert to int, just use the string ID
-        story["id"] = story_id
-    
-    story.update(data)
-    
-    # Updated timestamp
-    story["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    
-    return story
-
-def mock_create_comment(story_id: str, text: str) -> Dict[str, Any]:
-    """Mock function to create a comment on a story"""
-    logger.info(f"[MOCK] Creating comment on story: {story_id}")
-    logger.info(f"[MOCK] Comment text: {text}")
-    time.sleep(0.5)  # Simulate API delay
-    
-    # Handle both string and integer IDs
-    try:
-        story_id_int = int(story_id)
-    except (ValueError, TypeError):
-        # If we can't convert to int, just use the string ID
-        story_id_int = story_id
-    
-    return {
-        "id": 98765,
-        "text": text,
-        "story_id": story_id_int,
-        "author_id": "user-system",
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    }
+        return RealShortcutClient(api_key)
 
 # Function tools for the OpenAI Agent SDK
 
@@ -134,7 +194,7 @@ async def get_story_details(story_id: str, api_key: str) -> Dict[str, Any]:
         Dictionary with story details
     """
     client = get_shortcut_client(api_key)
-    return client["get_story"](story_id)
+    return await client.get_story(story_id)
 
 async def update_story(story_id: str, api_key: str, updates: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -149,7 +209,7 @@ async def update_story(story_id: str, api_key: str, updates: Dict[str, Any]) -> 
         Updated story data
     """
     client = get_shortcut_client(api_key)
-    return client["update_story"](story_id, updates)
+    return await client.update_story(story_id, updates)
 
 async def add_comment(story_id: str, api_key: str, text: str) -> Dict[str, Any]:
     """
@@ -164,7 +224,7 @@ async def add_comment(story_id: str, api_key: str, text: str) -> Dict[str, Any]:
         Created comment data
     """
     client = get_shortcut_client(api_key)
-    return client["create_comment"](story_id, text)
+    return await client.create_comment(story_id, text)
 
 async def queue_enhancement_task(workspace_id: str, story_id: str, api_key: str) -> Dict[str, Any]:
     """

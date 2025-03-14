@@ -581,14 +581,20 @@ class BaseAgent(Generic[T, U]):
         for guardrail in self.output_guardrails:
             output_guardrails.append(OutputGuardrail(guardrail))
         
+        # Create model settings based on model type
+        model_settings = None
+        if "o3-mini" not in model.lower():
+            # Only use temperature for models that support it
+            model_settings = ModelSettings(
+                temperature=0.2,  # Lower temperature for consistent outputs
+            )
+        
         # Create agent with correct parameters
         agent = Agent(
             name=self.agent_name,
             instructions=self.system_message,
             model=model,
-            model_settings=ModelSettings(
-                temperature=0.2,  # Lower temperature for consistent outputs
-            ),
+            model_settings=model_settings,
             tools=self.tools,
             hooks=hooks,
             input_guardrails=input_guardrails,

@@ -1,141 +1,201 @@
 #!/usr/bin/env python3
 """
-Direct script to test the Analysis Agent with Workspace1 story 308.
+Test script for running a full workflow with real APIs.
+
+This script tests the entire enhancement workflow with:
+1. Real OpenAI Agent SDK
+2. Real Shortcut API
+
+Usage:
+    python scripts/test_direct.py --workspace <workspace_id> --story <story_id> --workflow <enhance|analyse>
 """
 
 import os
 import sys
-import json
-import time
+import asyncio
+import argparse
 import logging
 from datetime import datetime
 
+# Set environment variables for real API usage
+os.environ["USE_MOCK_AGENTS"] = "false"  # Use real OpenAI agents
+os.environ["USE_REAL_SHORTCUT"] = "true"  # Use real Shortcut API
+
+# Add parent directory to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from context.workspace.workspace_context import WorkspaceContext, WorkflowType
+from shortcut_agents.triage.triage_agent import process_webhook
+from tools.shortcut.shortcut_tools import get_story_details
+from utils.logging.logger import configure_global_logging, get_logger
+
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+configure_global_logging(
+    log_dir="logs",
+    log_filename=f"direct_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
+    console_level="INFO",
+    file_level="DEBUG",
+    console_format="text",
+    file_format="json"
 )
-logger = logging.getLogger("test_direct")
 
-# Shortcut API key
-API_KEY = "d58a1ad0-4deb-44fd-a6c7-d29ccb9221fa"
-WORKSPACE_ID = "workspace1"
-STORY_ID = "308"
+# Get logger
+logger = get_logger("direct_test")
 
-def simulate_analysis():
-    """Simulate the analysis process with a mock result."""
-    logger.info(f"Analyzing story {STORY_ID} in workspace {WORKSPACE_ID}")
+def get_api_key(workspace_id: str) -> str:
+    """
+    Get the API key for a specific workspace.
     
-    # Simulate API delay
-    time.sleep(1)
+    Args:
+        workspace_id: The ID of the workspace
+        
+    Returns:
+        The API key for the workspace
+    """
+    # Look for workspace-specific API key in environment variables
+    env_var_name = f"SHORTCUT_API_KEY_{workspace_id.upper()}"
+    api_key = os.environ.get(env_var_name)
     
-    # Create a simple analysis result (mock)
-    analysis_result = {
-        "overall_score": 7,
-        "title_analysis": {
-            "score": 8,
-            "strengths": ["Clear and concise title", "Includes action verb"],
-            "weaknesses": ["Could be more specific"],
-            "recommendations": ["Add more context to the title"]
+    if not api_key:
+        # Fall back to generic API key
+        api_key = os.environ.get("SHORTCUT_API_KEY")
+        
+    if not api_key:
+        logger.error(f"No API key found for workspace: {workspace_id}")
+        raise ValueError(f"No API key found for workspace: {workspace_id}")
+        
+    return api_key
+
+async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
+    """
+    Run a direct test with real APIs.
+    
+    Args:
+        workspace_id: Workspace ID
+        story_id: Story ID
+        workflow_type: Workflow type ("enhance" or "analyse")
+        
+    Returns:
+        The result of the workflow
+    """
+    logger.info(f"Running direct test for {workflow_type} on story {story_id}")
+    
+    # Verify OpenAI API key
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    if not openai_api_key:
+        logger.error("OPENAI_API_KEY not set, cannot run test with real APIs")
+        raise ValueError("OPENAI_API_KEY environment variable is required")
+    
+    # Get Shortcut API key
+    api_key = get_api_key(workspace_id)
+    
+    # Create workspace context
+    context = WorkspaceContext(
+        workspace_id=workspace_id,
+        api_key=api_key,
+        story_id=story_id
+    )
+    
+    # Get story details
+    try:
+        logger.info(f"Fetching story details for {story_id}")
+        story_data = await get_story_details(story_id, api_key)
+        if hasattr(story_data, '__await__'):  # Check if it's a coroutine
+            story_data = await story_data
+        context.set_story_data(story_data)
+        logger.info(f"Successfully fetched story: {story_data.get('name', 'Unknown')}")
+    except Exception as e:
+        logger.error(f"Error fetching story: {str(e)}")
+        raise
+    
+    # Create a simulated webhook payload
+    # This simulates a label being added to the story
+    webhook_payload = {
+        "action": "update",
+        "id": int(story_id),
+        "changes": {
+            "labels": {
+                "adds": [{"name": workflow_type}]
+            }
         },
-        "description_analysis": {
-            "score": 6,
-            "strengths": ["Provides basic information"],
-            "weaknesses": ["Lacks detailed requirements", "Missing context"],
-            "recommendations": ["Add more detailed requirements", "Include background context"]
-        },
-        "acceptance_criteria_analysis": {
-            "score": 7,
-            "strengths": ["Clear list of requirements", "Covers key functionality"],
-            "weaknesses": ["Could be more specific", "Missing edge cases"],
-            "recommendations": ["Add more specific acceptance criteria", "Include edge cases"]
-        },
-        "priority_areas": [
-            "Improve description detail", 
-            "Add acceptance criteria for edge cases", 
-            "Clarify expected outcomes"
-        ],
-        "summary": "The story is of good quality but needs more detailed requirements and edge case handling."
+        "primary_id": int(story_id),
+        "references": []
     }
     
-    logger.info(f"Analysis complete for story {STORY_ID}")
-    return analysis_result
+    try:
+        # Process the webhook with the triage agent
+        logger.info("Calling triage agent process_webhook")
+        result = await process_webhook(webhook_payload, context)
+        
+        logger.info(f"Workflow completed with result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in workflow: {str(e)}")
+        raise
 
-def print_analysis_results(results):
-    """Print analysis results in a readable format."""
-    print("\n=== ANALYSIS RESULTS ===\n")
-    
-    # Print overall score and summary
-    overall_score = results.get("overall_score", 0)
-    print(f"Overall Score: {overall_score}/10")
-    print(f"Summary: {results.get('summary', 'No summary provided')}")
-    print("\n--- Component Analysis ---\n")
-    
-    # Print title analysis
-    title_analysis = results.get("title_analysis", {})
-    print(f"Title: {title_analysis.get('score', 0)}/10")
-    print("  Strengths:")
-    for strength in title_analysis.get("strengths", []):
-        print(f"  ✓ {strength}")
-    print("  Weaknesses:")
-    for weakness in title_analysis.get("weaknesses", []):
-        print(f"  ✗ {weakness}")
-    print("  Recommendations:")
-    for rec in title_analysis.get("recommendations", []):
-        print(f"  → {rec}")
-    print("")
-    
-    # Print description analysis
-    desc_analysis = results.get("description_analysis", {})
-    print(f"Description: {desc_analysis.get('score', 0)}/10")
-    print("  Strengths:")
-    for strength in desc_analysis.get("strengths", []):
-        print(f"  ✓ {strength}")
-    print("  Weaknesses:")
-    for weakness in desc_analysis.get("weaknesses", []):
-        print(f"  ✗ {weakness}")
-    print("  Recommendations:")
-    for rec in desc_analysis.get("recommendations", []):
-        print(f"  → {rec}")
-    print("")
-    
-    # Print acceptance criteria analysis if available
-    ac_analysis = results.get("acceptance_criteria_analysis")
-    if ac_analysis:
-        print(f"Acceptance Criteria: {ac_analysis.get('score', 0)}/10")
-        print("  Strengths:")
-        for strength in ac_analysis.get("strengths", []):
-            print(f"  ✓ {strength}")
-        print("  Weaknesses:")
-        for weakness in ac_analysis.get("weaknesses", []):
-            print(f"  ✗ {weakness}")
-        print("  Recommendations:")
-        for rec in ac_analysis.get("recommendations", []):
-            print(f"  → {rec}")
-        print("")
-    
-    # Print priority areas
-    print("Priority Areas for Improvement:")
-    for i, area in enumerate(results.get("priority_areas", []), 1):
-        print(f"  {i}. {area}")
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Test agents with real APIs")
+    parser.add_argument("--workspace", required=True, help="Workspace ID")
+    parser.add_argument("--story", required=True, help="Story ID")
+    parser.add_argument("--workflow", choices=["enhance", "analyse"], default="analyse",
+                      help="Workflow type (enhance or analyse)")
+    return parser.parse_args()
 
-def main():
-    """Main function."""
-    print(f"Testing Analysis Agent with Workspace1 Story 308")
-    print(f"API Key: {API_KEY[:5]}...{API_KEY[-4:]}")
+async def main():
+    """Main entry point."""
+    args = parse_args()
     
-    # In a real implementation, we would call the Analysis Agent here
-    # For now, we'll just simulate the analysis
-    results = simulate_analysis()
+    logger.info(f"Starting direct test with:")
+    logger.info(f"  Workspace: {args.workspace}")
+    logger.info(f"  Story: {args.story}")
+    logger.info(f"  Workflow: {args.workflow}")
+    logger.info(f"  Using real OpenAI and Shortcut APIs")
     
-    # Print the analysis results
-    print_analysis_results(results)
-    
-    # Save results to file
-    output_file = "analysis_results.json"
-    with open(output_file, 'w') as f:
-        json.dump(results, f, indent=2)
-    logger.info(f"Results saved to {output_file}")
+    try:
+        result = await run_direct_test(args.workspace, args.story, args.workflow)
+        
+        print("\n" + "=" * 80)
+        print(f"DIRECT TEST RESULT: {'✅ SUCCESS' if result.get('status') == 'success' else '❌ FAILED'}")
+        print("=" * 80)
+        print(f"Workspace ID: {args.workspace}")
+        print(f"Story ID:     {args.story}")
+        print(f"Workflow:     {args.workflow}")
+        
+        if result.get('status') == 'success':
+            if 'analysis_results' in result:
+                analysis = result['analysis_results']
+                print(f"Analysis Score: {analysis.get('quality_score', 'N/A')}")
+                print("\nRecommendations:")
+                for rec in analysis.get('recommendations', []):
+                    print(f"  - {rec}")
+                    
+            if 'update_results' in result:
+                update = result['update_results']
+                print(f"\nUpdate Success: {update.get('success', False)}")
+                if update.get('fields_updated'):
+                    print(f"Fields Updated: {', '.join(update.get('fields_updated', []))}")
+                if update.get('tags_added'):
+                    print(f"Tags Added:     {', '.join(update.get('tags_added', []))}")
+                if update.get('tags_removed'):
+                    print(f"Tags Removed:   {', '.join(update.get('tags_removed', []))}")
+        else:
+            print(f"Error: {result.get('error', 'Unknown error')}")
+        
+        print("=" * 80)
+        
+        return 0 if result.get('status') == 'success' else 1
+    except Exception as e:
+        logger.exception(f"Error in direct test: {str(e)}")
+        
+        print("\n" + "=" * 80)
+        print(f"DIRECT TEST RESULT: ❌ FAILED")
+        print("=" * 80)
+        print(f"Error: {str(e)}")
+        print("=" * 80)
+        
+        return 1
 
 if __name__ == "__main__":
-    main()
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)

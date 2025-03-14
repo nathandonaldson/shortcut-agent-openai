@@ -90,7 +90,7 @@ class TaskQueueManager:
         
         # Key prefixes for Redis
         self.task_prefix = "task:"
-        self.queue_prefix = "queue:"
+        self.queue_prefix = "task_queue:"
         self.processing_prefix = "processing:"
         self.failed_prefix = "failed:"
         self.complete_prefix = "complete:"

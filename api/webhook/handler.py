@@ -9,7 +9,7 @@ import time
 from typing import Dict, Any, Optional
 
 from context.workspace.workspace_context import WorkspaceContext
-from agents.triage.triage_agent import process_webhook
+from shortcut_agents.triage.triage_agent_refactored import process_webhook
 from utils.logging.logger import get_logger, trace_context
 from utils.logging.webhook import (
     log_webhook_receipt,

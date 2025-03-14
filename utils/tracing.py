@@ -1,147 +1,189 @@
 """
-Utility functions for trace context management across agent handoffs.
+Trace context utilities for agent handoffs.
+
+This module provides utilities for preserving and restoring trace context
+during agent handoffs to maintain consistent tracing and logging.
 """
 
 import os
 import json
-import logging
+import time
+import uuid
 from typing import Dict, Any, Optional
-from contextlib import contextmanager
+from contextvars import ContextVar
 
-# Try to import OpenAI Agent SDK components
-try:
-    from openai.types.agent.tracing import get_current_trace, trace
-    OPENAI_SDK_AVAILABLE = True
-except ImportError:
-    OPENAI_SDK_AVAILABLE = False
+from context.workspace.workspace_context import WorkspaceContext
+from utils.logging.logger import get_logger, trace_context, get_current_trace_context, set_trace_context
 
-logger = logging.getLogger("tracing")
+# Create a logger for tracing
+logger = get_logger("utils.tracing")
 
-# Thread-local storage for trace context
-_trace_context = {}
+# Context variable for storing handoff context
+handoff_context_var: ContextVar[Dict[str, Any]] = ContextVar('handoff_context', default={})
 
-def get_trace_context() -> Dict[str, Any]:
+def prepare_handoff_context(workspace_context: WorkspaceContext) -> WorkspaceContext:
     """
-    Get the current trace context.
+    Prepare context for handoff to another agent.
     
-    Returns:
-        Dictionary with trace context information
-    """
-    global _trace_context
-    return _trace_context.copy()
-
-def set_trace_context(context: Dict[str, Any]) -> None:
-    """
-    Set the current trace context.
+    This function captures the current trace context and stores it in the workspace context
+    to be restored in the target agent.
     
     Args:
-        context: Dictionary with trace context information
-    """
-    global _trace_context
-    _trace_context = context.copy()
-
-def clear_trace_context() -> None:
-    """Clear the current trace context."""
-    global _trace_context
-    _trace_context = {}
-
-def capture_current_trace() -> Dict[str, Any]:
-    """
-    Capture the current OpenAI SDK trace context.
-    
-    Returns:
-        Dictionary with trace information or empty dict if not available
-    """
-    if not OPENAI_SDK_AVAILABLE:
-        return {}
-    
-    try:
-        current_trace = get_current_trace()
-        if current_trace:
-            return {
-                "trace_id": current_trace.trace_id,
-                "workflow_name": current_trace.workflow_name,
-                "group_id": getattr(current_trace, "group_id", None),
-                "metadata": getattr(current_trace, "metadata", {})
-            }
-    except Exception as e:
-        logger.warning(f"Error capturing trace context: {str(e)}")
-    
-    return {}
-
-@contextmanager
-def preserve_trace_context():
-    """
-    Context manager to preserve trace context during operations.
-    
-    This ensures trace context is restored after a block of code executes.
-    """
-    # Capture the current context
-    original_context = get_trace_context()
-    try:
-        yield
-    finally:
-        # Restore the original context
-        set_trace_context(original_context)
-
-def prepare_handoff_context(workspace_context: Any) -> None:
-    """
-    Prepare context for agent handoff by capturing current trace information.
-    
-    Args:
-        workspace_context: The workspace context to enrich with trace information
-    """
-    if not hasattr(workspace_context, "trace_context"):
-        # Add trace context attribute if it doesn't exist
-        workspace_context.trace_context = {}
-    
-    # Capture current trace context
-    trace_info = capture_current_trace()
-    
-    if trace_info:
-        # Update workspace context with trace information
-        workspace_context.trace_context.update(trace_info)
-        logger.debug(f"Preserved trace context for handoff: {trace_info.get('trace_id')}")
-
-def restore_handoff_context(workspace_context: Any) -> Optional[Any]:
-    """
-    Restore trace context after agent handoff.
-    
-    Args:
-        workspace_context: The workspace context containing trace information
+        workspace_context: The workspace context to prepare for handoff
         
     Returns:
-        Trace object if restored successfully, None otherwise
+        The prepared workspace context
     """
-    if not OPENAI_SDK_AVAILABLE:
-        return None
+    # Get the current trace context
+    current_trace_context = get_current_trace_context()
     
-    if not hasattr(workspace_context, "trace_context"):
-        return None
+    # Store trace context in the workspace context
+    if not hasattr(workspace_context, '_trace_context'):
+        setattr(workspace_context, '_trace_context', {})
     
-    trace_info = workspace_context.trace_context
-    if not trace_info:
-        return None
+    # Update trace context
+    trace_context_dict = getattr(workspace_context, '_trace_context', {})
+    trace_context_dict.update(current_trace_context)
+    setattr(workspace_context, '_trace_context', trace_context_dict)
     
-    try:
-        # Create a new trace that continues the previous trace
-        parent_trace_id = trace_info.get("trace_id")
-        workflow_name = trace_info.get("workflow_name", "Continued Workflow")
-        group_id = trace_info.get("group_id")
-        metadata = trace_info.get("metadata", {})
+    # Generate handoff ID if not present
+    if 'handoff_id' not in trace_context_dict:
+        handoff_id = str(uuid.uuid4())
+        trace_context_dict['handoff_id'] = handoff_id
+    
+    # Log the handoff preparation
+    logger.info(
+        "Preparing agent handoff context",
+        handoff_id=trace_context_dict.get('handoff_id'),
+        trace_id=trace_context_dict.get('trace_id'),
+        from_agent=trace_context_dict.get('current_agent'),
+        workspace_id=workspace_context.workspace_id,
+        story_id=workspace_context.story_id
+    )
+    
+    return workspace_context
+
+def restore_handoff_context(workspace_context: WorkspaceContext) -> None:
+    """
+    Restore trace context after handoff from another agent.
+    
+    This function restores the trace context that was stored in the workspace context
+    by the source agent.
+    
+    Args:
+        workspace_context: The workspace context with stored trace context
+    """
+    # Get the trace context from the workspace context
+    trace_context_dict = getattr(workspace_context, '_trace_context', {})
+    
+    if not trace_context_dict:
+        # No trace context found, create a new one
+        logger.warning(
+            "No trace context found in workspace context, creating new",
+            workspace_id=workspace_context.workspace_id,
+            story_id=workspace_context.story_id
+        )
+        return
+    
+    # Restore trace context
+    set_trace_context(**trace_context_dict)
+    
+    # Update current agent
+    agent_name = trace_context_dict.get('target_agent')
+    if agent_name:
+        trace_context_dict['current_agent'] = agent_name
+        trace_context_dict['target_agent'] = None
+    
+    # Log the handoff restoration
+    logger.info(
+        "Restored agent handoff context",
+        handoff_id=trace_context_dict.get('handoff_id'),
+        trace_id=trace_context_dict.get('trace_id'),
+        to_agent=trace_context_dict.get('current_agent'),
+        workspace_id=workspace_context.workspace_id,
+        story_id=workspace_context.story_id
+    )
+
+def create_trace_id() -> str:
+    """
+    Create a new trace ID.
+    
+    Returns:
+        A unique trace ID string
+    """
+    return f"trace-{str(uuid.uuid4())}"
+
+def record_handoff(source_agent: str, target_agent: str, 
+                 workspace_context: WorkspaceContext, 
+                 input_data: Any) -> str:
+    """
+    Record a handoff between shortcut_agents.
+    
+    Args:
+        source_agent: Name of the source agent
+        target_agent: Name of the target agent
+        workspace_context: The workspace context
+        input_data: The input data being passed to the target agent
         
-        if parent_trace_id:
-            # Add parent trace information to metadata
-            metadata["parent_trace_id"] = parent_trace_id
-            logger.debug(f"Restoring trace context from parent: {parent_trace_id}")
-            
-            # Return a trace context manager (will be used with 'with' statement)
-            return trace(
-                workflow_name=f"{workflow_name} (continued)",
-                group_id=group_id,
-                trace_metadata=metadata
-            )
-    except Exception as e:
-        logger.warning(f"Error restoring trace context: {str(e)}")
+    Returns:
+        Handoff ID string
+    """
+    # Get or create trace context
+    trace_context_dict = getattr(workspace_context, '_trace_context', {})
+    if not trace_context_dict:
+        trace_context_dict = {}
+        setattr(workspace_context, '_trace_context', trace_context_dict)
     
-    return None
+    # Generate handoff ID
+    handoff_id = str(uuid.uuid4())
+    trace_context_dict['handoff_id'] = handoff_id
+    
+    # Get or generate trace ID
+    trace_id = trace_context_dict.get('trace_id')
+    if not trace_id:
+        trace_id = create_trace_id()
+        trace_context_dict['trace_id'] = trace_id
+    
+    # Update agent information
+    trace_context_dict['current_agent'] = source_agent
+    trace_context_dict['target_agent'] = target_agent
+    
+    # Record timestamp
+    timestamp = time.time()
+    trace_context_dict['handoff_timestamp'] = timestamp
+    
+    # Log the handoff
+    logger.info(
+        f"Agent handoff: {source_agent} -> {target_agent}",
+        handoff_id=handoff_id,
+        trace_id=trace_id,
+        source_agent=source_agent,
+        target_agent=target_agent,
+        workspace_id=workspace_context.workspace_id,
+        story_id=workspace_context.story_id,
+        timestamp=timestamp
+    )
+    
+    return handoff_id
+
+def track_handoff_completion(handoff_id: str, success: bool, result: Any = None) -> None:
+    """
+    Track completion of a handoff.
+    
+    Args:
+        handoff_id: The handoff ID
+        success: Whether the handoff completed successfully
+        result: Optional result summary
+    """
+    # Get current trace context
+    trace_context_dict = get_current_trace_context()
+    
+    # Log completion
+    logger.info(
+        f"Agent handoff completed: {'success' if success else 'failed'}",
+        handoff_id=handoff_id,
+        trace_id=trace_context_dict.get('trace_id'),
+        success=success,
+        current_agent=trace_context_dict.get('current_agent'),
+        result_summary=str(result)[:100] if result else None
+    )

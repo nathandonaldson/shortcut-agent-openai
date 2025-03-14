@@ -9,7 +9,7 @@ import argparse
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-from shortcut_agents.update.update_agent_refactored import process_update
+from shortcut_agents.update.update_agent import process_update
 from context.workspace.workspace_context import WorkspaceContext
 from tools.shortcut.shortcut_tools import get_story
 

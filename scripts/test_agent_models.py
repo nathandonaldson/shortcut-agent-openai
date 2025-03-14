@@ -18,7 +18,7 @@ logger = logging.getLogger("test_agent_models")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import required modules
-from shortcut_agents.triage.triage_agent_refactored import TriageOutput, create_triage_agent
+from shortcut_agents.triage.triage_agent import TriageOutput, create_triage_agent
 from shortcut_agents.analysis.models import (
     ComponentScore, AnalysisResult, AnalysisMetadata, StoryAnalysisOutput
 )

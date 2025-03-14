@@ -11,9 +11,9 @@ import asyncio
 from unittest.mock import patch, AsyncMock, MagicMock
 
 from context.workspace.workspace_context import WorkspaceContext, WorkflowType
-from shortcut_agents.triage.triage_agent_refactored import process_webhook
-from shortcut_agents.analysis.analysis_agent_refactored import process_analysis
-from shortcut_agents.update.update_agent_refactored import process_update
+from shortcut_agents.triage.triage_agent import process_webhook
+from shortcut_agents.analysis.analysis_agent import process_analysis
+from shortcut_agents.update.update_agent import process_update
 from utils.tracing import create_trace_id, trace_context
 
 # Test data

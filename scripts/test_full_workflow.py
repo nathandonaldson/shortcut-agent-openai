@@ -25,9 +25,9 @@ os.environ["USE_MOCK_AGENTS"] = "true"
 # Import required modules
 try:
     from api.webhook.handler import process_webhook_event
-    from shortcut_agents.triage.triage_agent_refactored import process_webhook
-    from shortcut_agents.analysis.analysis_agent_refactored import process_analysis
-    from shortcut_agents.update.update_agent_refactored import process_update
+    from shortcut_agents.triage.triage_agent import process_webhook
+    from shortcut_agents.analysis.analysis_agent import process_analysis
+    from shortcut_agents.update.update_agent import process_update
     from context.workspace.workspace_context import WorkspaceContext, WorkflowType
     from utils.tracing import setup_tracing, get_trace_processor
 except ImportError as e:

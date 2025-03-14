@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional
 
 from context.workspace.workspace_context import WorkspaceContext
 from tools.shortcut.shortcut_tools import get_story_details
-from shortcut_agents.analysis.analysis_agent_refactored import process_analysis
+from shortcut_agents.analysis.analysis_agent import process_analysis
 
 # Set up logging
 logging.basicConfig(

@@ -35,13 +35,13 @@ os.environ["USE_MOCK_AGENTS"] = "false"
 
 # Import required modules
 try:
-    from shortcut_agents.triage.triage_agent_refactored import TriageOutput, create_triage_agent, process_webhook
+    from shortcut_agents.triage.triage_agent import TriageOutput, create_triage_agent, process_webhook
     from shortcut_agents.analysis.models import (
         ComponentScore, AnalysisResult, AnalysisMetadata, StoryAnalysisOutput
     )
-    from shortcut_agents.analysis.analysis_agent_refactored import create_analysis_agent
+    from shortcut_agents.analysis.analysis_agent import create_analysis_agent
     from shortcut_agents.update.models import UpdateResult
-    from shortcut_agents.update.update_agent_refactored import create_update_agent
+    from shortcut_agents.update.update_agent import create_update_agent
     from context.workspace.workspace_context import WorkspaceContext
 except ImportError as e:
     logger.error(f"Error importing modules: {e}")

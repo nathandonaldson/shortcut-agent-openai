@@ -21,7 +21,7 @@ from typing import Dict, Any, Optional
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from context.workspace.workspace_context import WorkspaceContext, WorkflowType
-from shortcut_agents.triage.triage_agent_refactored import process_webhook
+from shortcut_agents.triage.triage_agent import process_webhook
 from utils.logging.logger import configure_global_logging, get_logger
 from utils.tracing import create_trace_id, trace_context
 from tools.shortcut.shortcut_tools import get_story_details

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from typing import Dict, Any, Optional
 
 from context.workspace.workspace_context import WorkspaceContext, WorkflowType
-from shortcut_agents.triage.triage_agent_refactored import create_triage_agent, process_webhook
+from shortcut_agents.triage.triage_agent import create_triage_agent, process_webhook
 
 @pytest.fixture
 def context():

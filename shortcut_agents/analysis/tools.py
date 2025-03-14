@@ -9,7 +9,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from openai import OpenAI
-from shortcut_agents import RunContextWrapper
+# Import RunContextWrapper directly from base_agent
+from shortcut_agents.base_agent import RunContextWrapper
 
 from context.workspace.workspace_context import WorkspaceContext
 from shortcut_agents.analysis.models import ComponentScore

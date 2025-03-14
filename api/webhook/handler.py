@@ -6,7 +6,20 @@ Processes incoming webhooks and routes them appropriately.
 import os
 import json
 import time
+import uuid
 from typing import Dict, Any, Optional
+
+# Import Agent SDK trace if available
+try:
+    from agents import trace as agent_trace
+    AGENT_SDK_AVAILABLE = True
+except ImportError:
+    AGENT_SDK_AVAILABLE = False
+    # Define a placeholder trace context manager
+    from contextlib import contextmanager
+    @contextmanager
+    def agent_trace(*args, **kwargs):
+        yield
 
 from context.workspace.workspace_context import WorkspaceContext
 from shortcut_agents.triage.triage_agent import process_webhook
@@ -130,66 +143,82 @@ async def handle_webhook(workspace_id: str, webhook_data: Dict[str, Any], reques
     # Extract story ID
     story_id = extract_story_id(webhook_data)
     
-    # Set up trace context
-    with trace_context(
-        request_id=request_id,
-        workspace_id=workspace_id,
-        story_id=story_id
+    # Generate a unique trace ID for this webhook event
+    trace_id = f"trace_{uuid.uuid4().hex}"
+    
+    # Use Agent SDK trace if available, otherwise fall back to our internal trace context
+    with agent_trace(
+        workflow_name=f"Shortcut-{workspace_id}",
+        trace_id=trace_id,
+        group_id=workspace_id,  # Group traces by workspace
+        metadata={
+            "story_id": story_id,
+            "webhook_type": webhook_data.get("action", "unknown"),
+            "client_ip": client_ip,
+            "request_path": request_path,
+            "request_id": request_id
+        }
     ):
-        # Basic validation
-        is_valid = validate_webhook(webhook_data, workspace_id)
-        log_webhook_validation(
+        # Also use our internal trace context for backward compatibility
+        with trace_context(
             request_id=request_id,
             workspace_id=workspace_id,
-            story_id=story_id,
-            is_valid=is_valid,
-            reason="Invalid or irrelevant webhook data" if not is_valid else None
-        )
-        
-        if not is_valid:
-            # Calculate processing time
-            duration_ms = int((time.time() - start_time) * 1000)
-            
-            return {
-                "status": "skipped",
-                "reason": "Invalid or irrelevant webhook data",
-                "workspace_id": workspace_id,
-                "request_id": request_id,
-                "duration_ms": duration_ms
-            }
-        
-        # Verify story ID
-        if not story_id:
-            # Log error
-            log_webhook_processing_error(
+            story_id=story_id
+        ):
+            # Basic validation
+            is_valid = validate_webhook(webhook_data, workspace_id)
+            log_webhook_validation(
                 request_id=request_id,
                 workspace_id=workspace_id,
-                story_id=None,
-                error="Could not extract story ID",
-                duration_ms=int((time.time() - start_time) * 1000)
+                story_id=story_id,
+                is_valid=is_valid,
+                reason="Invalid or irrelevant webhook data" if not is_valid else None
             )
             
-            return {
-                "status": "error",
-                "reason": "Could not extract story ID",
-                "workspace_id": workspace_id,
-                "request_id": request_id
-            }
-        
-        try:
-            # Log processing start
-            log_webhook_processing_start(
-                request_id=request_id,
-                workspace_id=workspace_id,
-                story_id=story_id
-            )
+            if not is_valid:
+                # Calculate processing time
+                duration_ms = int((time.time() - start_time) * 1000)
+                
+                return {
+                    "status": "skipped",
+                    "reason": "Invalid or irrelevant webhook data",
+                    "workspace_id": workspace_id,
+                    "request_id": request_id,
+                    "duration_ms": duration_ms
+                }
             
-            # Get API key for the workspace
-            api_key = get_api_key(workspace_id)
+            # Verify story ID
+            if not story_id:
+                # Log error
+                log_webhook_processing_error(
+                    request_id=request_id,
+                    workspace_id=workspace_id,
+                    story_id=None,
+                    error="Could not extract story ID",
+                    duration_ms=int((time.time() - start_time) * 1000)
+                )
+                
+                return {
+                    "status": "error",
+                    "reason": "Could not extract story ID",
+                    "workspace_id": workspace_id,
+                    "request_id": request_id
+                }
             
-            # Check if we should use the background worker or process inline
-            # Default to background processing
-            use_background = os.environ.get("USE_BACKGROUND_PROCESSING", "true").lower() in ("true", "1", "yes")
+            try:
+                # Log processing start
+                log_webhook_processing_start(
+                    request_id=request_id,
+                    workspace_id=workspace_id,
+                    story_id=story_id
+                )
+                
+                # Get API key for the workspace
+                api_key = get_api_key(workspace_id)
+                
+                # Check if we should use the background worker or process inline
+                # Default to background processing
+                use_background = os.environ.get("USE_BACKGROUND_PROCESSING", "true").lower() in ("true", "1", "yes")
             
             if use_background:
                 # Create a triage task in the queue

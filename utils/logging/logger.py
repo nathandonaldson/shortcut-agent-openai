@@ -15,19 +15,9 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Callable, List, Union, TypeVar, cast
 from contextlib import contextmanager
 
-# Try to import OpenAI Agent SDK components - gracefully handle if not available
-try:
-    from openai import OpenAI
-    from agents import RunContextWrapper
-    from agents.tracing import add_trace_processor, Trace, Span, TraceProcessor
-    OPENAI_SDK_AVAILABLE = True
-except ImportError:
-    # Create dummy classes to avoid errors
-    class RunContextWrapper:
-        pass
-    class TraceProcessor:
-        pass
-    OPENAI_SDK_AVAILABLE = False
+from openai import OpenAI
+from agents import RunContextWrapper
+from agents.tracing import add_trace_processor, Trace, Span, TraceProcessor
 
 # Store trace context in thread-local storage
 _thread_local = threading.local()
@@ -478,85 +468,79 @@ def configure_global_logging(log_dir: str = LOG_DIR,
 
 def configure_openai_sdk_logging() -> None:
     """Configure OpenAI Agent SDK logging integration."""
-    if OPENAI_SDK_AVAILABLE:
-        # Configure SDK loggers
-        agent_logger = logging.getLogger("openai.agents")
-        tracing_logger = logging.getLogger("openai.agents.tracing")
+    # Configure SDK loggers
+    agent_logger = logging.getLogger("openai.agents")
+    tracing_logger = logging.getLogger("openai.agents.tracing")
+    
+    # Set appropriate levels
+    agent_logger.setLevel(logging.INFO)
+    tracing_logger.setLevel(logging.INFO)
+    
+    # Create a trace processor
+    class LoggingTraceProcessor(TraceProcessor):
+        """Process Agent SDK traces and add them to our logging system."""
         
-        # Set appropriate levels
-        agent_logger.setLevel(logging.INFO)
-        tracing_logger.setLevel(logging.INFO)
+        async def process_trace(self, trace) -> None:
+            """Process a completed trace."""
+            # Get the logger for traces
+            logger = get_logger("openai.trace")
+            
+            # Extract metadata
+            metadata = getattr(trace, "metadata", {}) or {}
+            
+            # Calculate duration
+            duration_ms = 0
+            try:
+                if hasattr(trace, "start_time") and hasattr(trace, "end_time"):
+                    if trace.start_time and trace.end_time:
+                        duration_ms = int((trace.end_time - trace.start_time) * 1000)
+            except Exception:
+                pass
+            
+            # Log trace completion
+            logger.info(
+                f"Trace completed: {trace.workflow_name}",
+                trace_id=trace.trace_id,
+                group_id=getattr(trace, "group_id", None),
+                duration_ms=duration_ms,
+                **metadata
+            )
         
-        # Create a trace processor if the SDK supports it
-        try:
-            class LoggingTraceProcessor(TraceProcessor):
-                """Process Agent SDK traces and add them to our logging system."""
-                
-                async def process_trace(self, trace) -> None:
-                    """Process a completed trace."""
-                    # Get the logger for traces
-                    logger = get_logger("openai.trace")
-                    
-                    # Extract metadata
-                    metadata = getattr(trace, "metadata", {}) or {}
-                    
-                    # Calculate duration
-                    duration_ms = 0
-                    try:
-                        if hasattr(trace, "start_time") and hasattr(trace, "end_time"):
-                            if trace.start_time and trace.end_time:
-                                duration_ms = int((trace.end_time - trace.start_time) * 1000)
-                    except Exception:
-                        pass
-                    
-                    # Log trace completion
-                    logger.info(
-                        f"Trace completed: {trace.workflow_name}",
-                        trace_id=trace.trace_id,
-                        group_id=getattr(trace, "group_id", None),
-                        duration_ms=duration_ms,
-                        **metadata
-                    )
-                
-                async def process_span(self, span) -> None:
-                    """Process a span from a trace."""
-                    # Get the logger for spans
-                    logger = get_logger("openai.span")
-                    
-                    # Extract span data
-                    span_data = getattr(span, "span_data", None)
-                    if not span_data:
-                        return
-                    
-                    # Extract span type
-                    span_type = getattr(span_data, "type", "unknown")
-                    
-                    # Process based on span type
-                    if span_type == "agent":
-                        # Agent span
-                        agent_name = getattr(span_data, "agent_name", "unknown")
-                        logger.info(
-                            f"Agent execution: {agent_name}",
-                            trace_id=span.trace_id,
-                            span_id=span.span_id,
-                            agent_name=agent_name
-                        )
-                    elif span_type == "function":
-                        # Function call span
-                        function_name = getattr(span_data, "function_name", "unknown")
-                        logger.info(
-                            f"Function call: {function_name}",
-                            trace_id=span.trace_id,
-                            span_id=span.span_id,
-                            function_name=function_name
-                        )
+        async def process_span(self, span) -> None:
+            """Process a span from a trace."""
+            # Get the logger for spans
+            logger = get_logger("openai.span")
             
-            # Add the trace processor to the SDK
-            add_trace_processor(LoggingTraceProcessor())
+            # Extract span data
+            span_data = getattr(span, "span_data", None)
+            if not span_data:
+                return
             
-        except (NameError, ImportError, AttributeError):
-            # SDK doesn't support trace processors or we couldn't import correctly
-            pass
+            # Extract span type
+            span_type = getattr(span_data, "type", "unknown")
+            
+            # Process based on span type
+            if span_type == "agent":
+                # Agent span
+                agent_name = getattr(span_data, "agent_name", "unknown")
+                logger.info(
+                    f"Agent execution: {agent_name}",
+                    trace_id=span.trace_id,
+                    span_id=span.span_id,
+                    agent_name=agent_name
+                )
+            elif span_type == "function":
+                # Function call span
+                function_name = getattr(span_data, "function_name", "unknown")
+                logger.info(
+                    f"Function call: {function_name}",
+                    trace_id=span.trace_id,
+                    span_id=span.span_id,
+                    function_name=function_name
+                )
+    
+    # Add the trace processor to the SDK
+    add_trace_processor(LoggingTraceProcessor())
 
 # Initialize with default settings
 def init_logging() -> None:

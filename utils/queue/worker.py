@@ -17,27 +17,10 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Callable, Coroutine, Union, Set
 
-# Try to import Agent SDK for tracing
-try:
-    from agents import (
-        trace, Runner, set_tracing_disabled, 
-        set_default_openai_key, set_tracing_export_api_key
-    )
-    AGENT_SDK_AVAILABLE = True
-except ImportError:
-    AGENT_SDK_AVAILABLE = False
-    # Define placeholder trace context manager
-    from contextlib import contextmanager
-    @contextmanager
-    def trace(*args, **kwargs):
-        yield
-    # Define placeholder API configuration functions
-    def set_tracing_disabled(disabled: bool):
-        pass
-    def set_default_openai_key(api_key: str):
-        pass
-    def set_tracing_export_api_key(api_key: str):
-        pass
+from agents import (
+    trace, Runner, set_tracing_disabled, 
+    set_default_openai_key, set_tracing_export_api_key
+)
 
 # Import task queue
 from utils.queue.task_queue import task_queue, Task, TaskType, TaskStatus, TaskPriority
@@ -121,34 +104,28 @@ class TaskWorker:
     
     def setup_tracing(self):
         """Set up tracing for the worker process."""
-        if not AGENT_SDK_AVAILABLE:
-            logger.warning("Agent SDK not available, tracing will be limited")
-            return
-            
         try:
             # Ensure tracing is enabled
             set_tracing_disabled(False)
             
             # Set API keys
             api_key = os.environ.get("OPENAI_API_KEY")
-            if api_key:
-                set_default_openai_key(api_key)
-                set_tracing_export_api_key(api_key)
+            if not api_key:
+                logger.error("OPENAI_API_KEY not found, tracing will not work")
+                raise ValueError("OPENAI_API_KEY environment variable not set")
                 
-                # Import and register the trace processor
-                try:
-                    from utils.logging.trace_processor import EnhancementTraceProcessor, setup_trace_processor
-                    setup_trace_processor()
-                    logger.info("Registered EnhancementTraceProcessor with OpenAI Agent SDK")
-                except Exception as trace_error:
-                    logger.error(f"Error registering trace processor: {str(trace_error)}")
-                
-                logger.info("Worker tracing configured with OpenAI Agent SDK")
-            else:
-                logger.warning("OPENAI_API_KEY not found, tracing may be limited")
+            set_default_openai_key(api_key)
+            set_tracing_export_api_key(api_key)
+            
+            # Import and register the trace processor
+            from utils.logging.trace_processor import EnhancementTraceProcessor, setup_trace_processor
+            setup_trace_processor()
+            logger.info("Registered EnhancementTraceProcessor with OpenAI Agent SDK")
+            
+            logger.info("Worker tracing configured with OpenAI Agent SDK")
         except Exception as e:
             logger.error(f"Error setting up tracing: {str(e)}")
-            logger.warning("Continuing without proper tracing configuration")
+            raise  # Re-raise the exception to make errors visible
     
     def _setup_signal_handlers(self):
         """Set up signal handlers for graceful shutdown"""

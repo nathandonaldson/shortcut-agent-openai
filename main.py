@@ -27,14 +27,11 @@ from utils.env import load_env_vars, setup_openai_configuration
 load_env_vars()
 
 # Setup OpenAI configuration and tracing
-try:
-    setup_openai_configuration()
-    
-    # Import and setup trace processor
-    from utils.logging.trace_processor import setup_trace_processor
-    setup_trace_processor()
-except Exception as e:
-    logger.warning(f"OpenAI configuration failed: {str(e)}")
+setup_openai_configuration()
+
+# Import and setup trace processor
+from utils.logging.trace_processor import setup_trace_processor
+setup_trace_processor()
 
 # Import webhook handler
 from api.webhook.handler import handle_webhook

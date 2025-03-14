@@ -198,7 +198,27 @@ async def handle_webhook(workspace_id: str, webhook_data: Dict[str, Any], reques
             
             # Process the webhook with the triage agent
             logger.info(f"Processing webhook with triage agent")
-            result = await process_webhook(webhook_data, context)
+            try:
+                # Try to use the regular process_webhook function
+                result = await process_webhook(webhook_data, context)
+            except Exception as e:
+                # If it fails, fall back to a simplified direct approach
+                logger.warning(f"Error in process_webhook: {str(e)}, falling back to simplified implementation")
+                from shortcut_agents.triage.triage_agent import TriageAgent
+                
+                # Create triage agent directly and use simplified mode
+                triage_agent = TriageAgent()
+                simplified_result = await triage_agent.run_simplified(webhook_data, context)
+                
+                # Format result in the same structure as process_webhook would return
+                result = {
+                    "status": "success",
+                    "agent": "triage",
+                    "result": simplified_result.get("result", {})
+                }
+                
+                # Log the fallback
+                logger.info(f"Used simplified triage implementation, result: {result}")
             
             # Log triage decision
             log_triage_decision(

@@ -24,7 +24,7 @@ os.environ["USE_MOCK_AGENTS"] = "true"
 
 # Import required modules
 try:
-    from api.webhook.handler import process_webhook_event
+    from api.webhook.handler import handle_webhook
     from shortcut_agents.triage.triage_agent import process_webhook
     from shortcut_agents.analysis.analysis_agent import process_analysis
     from shortcut_agents.update.update_agent import process_update

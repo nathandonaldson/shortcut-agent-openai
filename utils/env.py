@@ -9,6 +9,14 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
+# OpenAI and Agent SDK imports
+try:
+    from openai import AsyncOpenAI
+    from agents import set_default_openai_key, set_tracing_export_api_key
+    AGENT_SDK_AVAILABLE = True
+except ImportError:
+    AGENT_SDK_AVAILABLE = False
+
 # Set up logging
 logger = logging.getLogger("env")
 
@@ -72,3 +80,22 @@ def get_required_env(key: str) -> str:
     if value is None:
         raise ValueError(f"Required environment variable {key} not set")
     return value
+
+def setup_openai_configuration():
+    """Configure OpenAI API keys for both SDK and tracing."""
+    if not AGENT_SDK_AVAILABLE:
+        logger.warning("OpenAI Agent SDK not available, skipping configuration")
+        return
+        
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable not set")
+    
+    # Set the API key for the OpenAI SDK
+    set_default_openai_key(api_key)
+    
+    # Explicitly set the same API key for tracing export
+    set_tracing_export_api_key(api_key)
+    
+    # Log configuration status
+    logger.info("OpenAI API and tracing configuration complete")

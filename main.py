@@ -23,8 +23,14 @@ project_root = Path(__file__).parent.absolute()
 sys.path.insert(0, str(project_root))
 
 # Load environment variables
-from utils.env import load_env_vars
+from utils.env import load_env_vars, setup_openai_configuration
 load_env_vars()
+
+# Setup OpenAI configuration 
+try:
+    setup_openai_configuration()
+except Exception as e:
+    logger.warning(f"OpenAI configuration failed: {str(e)}")
 
 # Import webhook handler
 from api.webhook.handler import handle_webhook

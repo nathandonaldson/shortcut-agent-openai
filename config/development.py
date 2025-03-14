@@ -9,12 +9,12 @@ config = {
         "password": "",
     },
     "models": {
-        "triage": "gpt-3.5-turbo",
-        "analysis": "gpt-3.5-turbo",
-        "generation": "gpt-3.5-turbo",
-        "update": "gpt-3.5-turbo",
-        "comment": "gpt-3.5-turbo",
-        "notification": "gpt-3.5-turbo",
+        "triage": "gpt-4o-mini",
+        "analysis": "gpt-4o-mini",
+        "generation": "gpt-4o-mini",
+        "update": "gpt-4o-mini",
+        "comment": "gpt-4o-mini",
+        "notification": "gpt-4o-mini",
     },
     "log_level": "DEBUG",
     "timeout": 30,  # Longer timeouts for development

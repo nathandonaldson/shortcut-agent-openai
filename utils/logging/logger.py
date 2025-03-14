@@ -18,8 +18,8 @@ from contextlib import contextmanager
 # Try to import OpenAI Agent SDK components - gracefully handle if not available
 try:
     from openai import OpenAI
-    from shortcut_agents import RunContextWrapper
-    from shortcut_agents.tracing import add_trace_processor, Trace, Span, TraceProcessor
+    from agents import RunContextWrapper
+    from agents.tracing import add_trace_processor, Trace, Span, TraceProcessor
     OPENAI_SDK_AVAILABLE = True
 except ImportError:
     # Create dummy classes to avoid errors

@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 
 # Try to import OpenAI Agent SDK components
 try:
-    from shortcut_agents.tracing import TraceProcessor, Trace, Span
+    from agents.tracing import add_trace_processor, TraceProcessor, Trace, Span
     OPENAI_SDK_AVAILABLE = True
 except ImportError:
     # Create dummy classes for type hints
@@ -37,7 +37,7 @@ os.makedirs(TRACE_DIR, exist_ok=True)
 
 class EnhancementTraceProcessor(TraceProcessor):
     """
-    Trace processor for Shortcut Enhancement shortcut_agents.
+    Trace processor for Shortcut Enhancement agents.
     
     Captures and processes OpenAI Agent SDK traces, extracting key metrics
     and logging them for monitoring and debugging.
@@ -239,3 +239,24 @@ class EnhancementTraceProcessor(TraceProcessor):
         except Exception as e:
             logger.error(f"Error converting span to dict: {str(e)}")
             return {"error": str(e), "span_id": span.span_id}
+
+
+def setup_trace_processor():
+    """
+    Set up and register the trace processor with the OpenAI Agent SDK.
+    This function should be called during application initialization.
+    """
+    if not OPENAI_SDK_AVAILABLE:
+        logger.warning("OpenAI Agent SDK not available, skipping trace processor setup")
+        return
+    
+    try:
+        # Create trace processor instance
+        processor = EnhancementTraceProcessor()
+        
+        # Register the processor with the OpenAI Agent SDK
+        add_trace_processor(processor)
+        
+        logger.info("Registered EnhancementTraceProcessor with OpenAI Agent SDK")
+    except Exception as e:
+        logger.error(f"Error setting up trace processor: {str(e)}")

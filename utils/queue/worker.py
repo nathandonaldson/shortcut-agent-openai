@@ -134,6 +134,15 @@ class TaskWorker:
             if api_key:
                 set_default_openai_key(api_key)
                 set_tracing_export_api_key(api_key)
+                
+                # Import and register the trace processor
+                try:
+                    from utils.logging.trace_processor import EnhancementTraceProcessor, setup_trace_processor
+                    setup_trace_processor()
+                    logger.info("Registered EnhancementTraceProcessor with OpenAI Agent SDK")
+                except Exception as trace_error:
+                    logger.error(f"Error registering trace processor: {str(trace_error)}")
+                
                 logger.info("Worker tracing configured with OpenAI Agent SDK")
             else:
                 logger.warning("OPENAI_API_KEY not found, tracing may be limited")

@@ -50,6 +50,11 @@ class RealShortcutClient:
         
         url = f"{self.base_url}/stories/{story_id}"
         
+        # Debug logging - mask most of the API key but show a few chars to validate
+        api_key_snippet = self.api_key[:4] + "..." + self.api_key[-4:] if len(self.api_key) > 8 else "***masked***"
+        logger.info(f"Using API key starting with {api_key_snippet} for story {story_id}")
+        logger.info(f"Request URL: {url}")
+        
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=self.headers) as response:
                 if response.status == 200:
@@ -57,6 +62,15 @@ class RealShortcutClient:
                 else:
                     error_text = await response.text()
                     logger.error(f"Error getting story {story_id}: {response.status} {error_text}")
+                    logger.error(f"Headers used: Content-Type=application/json, API key length: {len(self.api_key)} chars")
+                    # Test with a direct synchronous request to compare
+                    try:
+                        import requests
+                        test_response = requests.get(url, headers={"Shortcut-Token": self.api_key})
+                        logger.info(f"Direct test request status: {test_response.status_code}")
+                    except Exception as test_err:
+                        logger.error(f"Direct test also failed: {str(test_err)}")
+                    
                     raise Exception(f"Failed to get story: {response.status}")
     
     async def update_story(self, story_id: str, data: Dict[str, Any]) -> Dict[str, Any]:

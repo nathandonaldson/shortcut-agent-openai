@@ -125,10 +125,67 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
     try:
         # Process the webhook with the triage agent
         logger.info("Calling triage agent process_webhook")
-        result = await process_webhook(webhook_payload, context)
+        triage_result = await process_webhook(webhook_payload, context)
         
-        logger.info(f"Workflow completed with result: {result}")
-        return result, context
+        logger.info(f"Triage completed with result: {triage_result}")
+        
+        # Check if we need to continue with analysis or enhancement
+        if context.workflow_type:
+            logger.info(f"Continuing with {context.workflow_type.name} workflow")
+            
+            # Import necessary agents based on workflow type
+            if context.workflow_type.name == "ANALYSE":
+                from shortcut_agents.analysis.analysis_agent import create_analysis_agent
+                
+                # Create and run analysis agent
+                logger.info("Creating analysis agent")
+                analysis_agent = create_analysis_agent()
+                
+                # Run analysis on the story data
+                logger.info("Running analysis agent")
+                analysis_result = await analysis_agent.run(context.story_data, context)
+                logger.info(f"Analysis completed with result: {analysis_result}")
+                
+                # Store analysis results
+                triage_result["analysis_results"] = analysis_result.get("result", {})
+                
+            elif context.workflow_type.name == "ENHANCE":
+                from shortcut_agents.analysis.analysis_agent import create_analysis_agent
+                from shortcut_agents.update.update_agent import create_update_agent
+                
+                # First run analysis
+                logger.info("Creating analysis agent")
+                analysis_agent = create_analysis_agent()
+                
+                # Run analysis on the story data
+                logger.info("Running analysis agent")
+                analysis_result = await analysis_agent.run(context.story_data, context)
+                logger.info(f"Analysis completed with result: {analysis_result}")
+                
+                # Store analysis results
+                triage_result["analysis_results"] = analysis_result.get("result", {})
+                
+                # Then run update with the analysis results
+                logger.info("Creating update agent")
+                update_agent = create_update_agent()
+                
+                # Prepare input for update agent
+                update_input = {
+                    "story_id": context.story_id,
+                    "workspace_id": context.workspace_id,
+                    "update_type": "enhancement",
+                    "analysis_result": analysis_result.get("result", {})
+                }
+                
+                # Run update agent
+                logger.info("Running update agent")
+                update_result = await update_agent.run(update_input, context)
+                logger.info(f"Update completed with result: {update_result}")
+                
+                # Store update results
+                triage_result["update_results"] = update_result.get("result", {})
+            
+        return triage_result, context
     except Exception as e:
         logger.error(f"Error in workflow: {str(e)}")
         raise

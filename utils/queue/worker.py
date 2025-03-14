@@ -274,18 +274,14 @@ class TaskWorker:
         
         # Process with triage agent
         webhook_data = task.payload.get("webhook_data", {})
-        try:
-            result = await process_webhook(webhook_data, context)
-        except TypeError as e:
-            if "missing 1 required positional argument: 'name'" in str(e):
-                # Work around SDK function_tool issue
-                logger.warning("Detected SDK function_tool error, using simplified triage")
-                # Create triage agent and use simplified flow
-                from shortcut_agents.triage.triage_agent import create_triage_agent
-                agent = create_triage_agent()
-                result = await agent.run_simplified(webhook_data, context)
-            else:
-                raise
+        
+        # Skip the SDK process_webhook and use the simplified version directly
+        logger.info("Using simplified triage agent for task processing")
+        from shortcut_agents.triage.triage_agent import create_triage_agent
+        agent = create_triage_agent()
+        
+        # Run simplified version directly to avoid SDK issues
+        result = await agent.run_simplified(webhook_data, context)
         
         # Schedule follow-up tasks based on workflow type
         if context.workflow_type == WorkflowType.ENHANCE:

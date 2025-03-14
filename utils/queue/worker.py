@@ -19,7 +19,10 @@ from typing import Dict, Any, Optional, List, Callable, Coroutine, Union, Set
 
 # Try to import Agent SDK for tracing
 try:
-    from agents import trace, Runner
+    from agents import (
+        trace, Runner, set_tracing_disabled, 
+        set_default_openai_key, set_tracing_export_api_key
+    )
     AGENT_SDK_AVAILABLE = True
 except ImportError:
     AGENT_SDK_AVAILABLE = False
@@ -28,6 +31,13 @@ except ImportError:
     @contextmanager
     def trace(*args, **kwargs):
         yield
+    # Define placeholder API configuration functions
+    def set_tracing_disabled(disabled: bool):
+        pass
+    def set_default_openai_key(api_key: str):
+        pass
+    def set_tracing_export_api_key(api_key: str):
+        pass
 
 # Import task queue
 from utils.queue.task_queue import task_queue, Task, TaskType, TaskStatus, TaskPriority
@@ -59,7 +69,8 @@ class TaskWorker:
         worker_id: str = None,
         polling_interval: float = 1.0,
         shutdown_timeout: float = 10.0,
-        task_types: Optional[List[str]] = None
+        task_types: Optional[List[str]] = None,
+        config: Optional[Dict[str, Any]] = None
     ):
         """
         Initialize the task worker.
@@ -69,6 +80,7 @@ class TaskWorker:
             polling_interval: Seconds between queue polls
             shutdown_timeout: Seconds to wait for tasks to complete on shutdown
             task_types: List of task types to process, defaults to all
+            config: Additional configuration options
         """
         # Generate worker ID if not provided
         self.worker_id = worker_id or f"{platform.node()}-{os.getpid()}"
@@ -82,6 +94,7 @@ class TaskWorker:
             TaskType.ENHANCEMENT,
             TaskType.UPDATE
         ]
+        self.config = config or {}
         
         # State
         self.running = False
@@ -94,11 +107,36 @@ class TaskWorker:
             "last_task_time": None,
         }
         
+        # Set up tracing if Agent SDK is available
+        self.setup_tracing()
+        
         # Register signal handlers
         self._setup_signal_handlers()
         
         logger.info(f"Initialized TaskWorker {self.worker_id}")
         logger.info(f"Processing task types: {self.task_types}")
+    
+    def setup_tracing(self):
+        """Set up tracing for the worker process."""
+        if not AGENT_SDK_AVAILABLE:
+            logger.warning("Agent SDK not available, tracing will be limited")
+            return
+            
+        try:
+            # Ensure tracing is enabled
+            set_tracing_disabled(False)
+            
+            # Set API keys
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if api_key:
+                set_default_openai_key(api_key)
+                set_tracing_export_api_key(api_key)
+                logger.info("Worker tracing configured with OpenAI Agent SDK")
+            else:
+                logger.warning("OPENAI_API_KEY not found, tracing may be limited")
+        except Exception as e:
+            logger.error(f"Error setting up tracing: {str(e)}")
+            logger.warning("Continuing without proper tracing configuration")
     
     def _setup_signal_handlers(self):
         """Set up signal handlers for graceful shutdown"""

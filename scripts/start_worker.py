@@ -83,11 +83,19 @@ if args.task_types:
 
 async def run_worker():
     """Run the worker with the specified configuration"""
+    # Create worker configuration
+    config = {
+        "enable_tracing": True,
+        "redis_url": args.redis_url,
+        "redis_prefix": "task_queue:",
+    }
+    
     # Create and start the worker
     worker = TaskWorker(
         worker_id=args.worker_id,
         polling_interval=args.polling_interval,
-        task_types=task_types
+        task_types=task_types,
+        config=config
     )
     
     logger.info(f"Starting worker {worker.worker_id}")

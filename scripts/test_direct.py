@@ -67,13 +67,14 @@ def get_api_key(workspace_id: str) -> str:
         
     return api_key
 
-def _format_analysis_comment(analysis_results: Dict[str, Any], story_id: str) -> str:
+def _format_analysis_comment(analysis_results: Dict[str, Any], story_id: str, workspace_id: str) -> str:
     """
     Format analysis results as a Markdown comment.
     
     Args:
         analysis_results: Analysis results dictionary
         story_id: Story ID
+        workspace_id: Workspace ID
         
     Returns:
         Formatted Markdown comment
@@ -291,7 +292,7 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
                 logger.info("Adding analysis results as a comment to the story")
                 
                 # Format the analysis as a markdown comment
-                analysis_comment = _format_analysis_comment(analysis_results, story_id)
+                analysis_comment = _format_analysis_comment(analysis_results, story_id, workspace_id)
                 
                 # Add the comment to the story
                 from tools.shortcut.shortcut_tools import add_comment
@@ -322,7 +323,7 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
                 logger.info("Adding analysis results as a comment to the story")
                 
                 # Format the analysis as a markdown comment
-                analysis_comment = _format_analysis_comment(analysis_results, story_id)
+                analysis_comment = _format_analysis_comment(analysis_results, story_id, workspace_id)
                 
                 # Add the comment to the story
                 from tools.shortcut.shortcut_tools import add_comment

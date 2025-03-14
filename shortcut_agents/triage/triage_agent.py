@@ -29,6 +29,14 @@ You should only process story updates with specific labels:
 - Stories with the "enhance" label should be queued for enhancement
 - Stories with the "analyse" or "analyze" label should be queued for analysis only
 
+The webhook data may contain label information in different formats:
+- Directly in a "labels" field with label names
+- As label IDs in a "label_ids" field, with label names in a "references" section
+- In the story data itself if already fetched
+
+Look carefully at all parts of the webhook, including the "references" section, to find labels
+that have been added to the story. Check both the story data and the webhook data for labels.
+
 Ignore all other webhook events that don't involve these labels being added.
 """
 
@@ -172,11 +180,24 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
                 if action.get("action") == "update" and "changes" in action:
                     # Handle label changes
                     changes = action.get("changes", {})
+                    
+                    # Check for labels in traditional format
                     if "labels" in changes and "adds" in changes["labels"]:
                         for label in changes["labels"]["adds"]:
                             if isinstance(label, dict) and "name" in label:
                                 label_names.append(label["name"].lower())
                                 logger.info(f"Found label in webhook: {label['name']}")
+                    
+                    # Check for label_ids format
+                    if "label_ids" in changes and "adds" in changes["label_ids"]:
+                        # If we have label_ids, we need to check the references section
+                        if "references" in webhook_data:
+                            for reference in webhook_data["references"]:
+                                if (reference.get("entity_type") == "label" and 
+                                    reference.get("id") in changes["label_ids"]["adds"]):
+                                    label_name = reference.get("name", "").lower()
+                                    label_names.append(label_name)
+                                    logger.info(f"Found label in references: {reference.get('name')}")
         
         # Log all found labels
         logger.info(f"All labels found (lowercase): {label_names}")

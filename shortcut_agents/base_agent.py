@@ -658,6 +658,10 @@ class BaseAgent(Generic[T, U]):
                 # Run the agent with the OpenAI Agent SDK
                 self.logger.info(f"Running {self.agent_name} with OpenAI Agent SDK")
                 
+                # For triage agent specifically, log the full webhook payload to help with debugging
+                if self.agent_type == "triage":
+                    self.logger.info(f"Processing webhook payload: {json.dumps(input_data)[:1000]}")
+                
                 # Check for any Promise-related issues before attempting to run
                 if getattr(Runner, "run", None) is None:
                     self.logger.warning("Runner.run method is None, falling back to simplified execution")

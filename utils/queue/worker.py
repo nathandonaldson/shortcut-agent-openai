@@ -13,8 +13,21 @@ import logging
 import signal
 import platform
 import traceback
+import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Callable, Coroutine, Union, Set
+
+# Try to import Agent SDK for tracing
+try:
+    from agents import trace, Runner
+    AGENT_SDK_AVAILABLE = True
+except ImportError:
+    AGENT_SDK_AVAILABLE = False
+    # Define placeholder trace context manager
+    from contextlib import contextmanager
+    @contextmanager
+    def trace(*args, **kwargs):
+        yield
 
 # Import task queue
 from utils.queue.task_queue import task_queue, Task, TaskType, TaskStatus, TaskPriority
@@ -195,42 +208,54 @@ class TaskWorker:
         self.stats["tasks_processed"] += 1
         self.stats["last_task_time"] = datetime.utcnow().isoformat()
         
+        # Process the task with tracing if available
         try:
-            # Create the workspace context
-            context = self._create_context_from_task(task)
-            
-            # Process the task based on its type
-            if task.task_type == TaskType.TRIAGE:
-                result = await self._process_triage_task(task, context)
-            elif task.task_type == TaskType.ANALYSIS:
-                result = await self._process_analysis_task(task, context)
-            elif task.task_type == TaskType.ENHANCEMENT:
-                result = await self._process_enhancement_task(task, context)
-            else:
-                raise ValueError(f"Unsupported task type: {task.task_type}")
-            
-            # For simplicity, convert any non-dict results to dict
-            if not isinstance(result, dict):
-                if hasattr(result, "model_dump") and callable(getattr(result, "model_dump")):
-                    result = result.model_dump() 
-                elif hasattr(result, "dict") and callable(getattr(result, "dict")):
-                    result = result.dict()
+            # Create proper trace for the entire background task process
+            with trace(
+                workflow_name=f"Background-{task.task_type}-{task.workspace_id}",
+                trace_id=f"trace_{task.task_id}",
+                group_id=task.workspace_id,  # Group by workspace
+                metadata={
+                    "story_id": task.story_id,
+                    "task_type": task.task_type,
+                    "task_id": task.task_id,
+                    "worker_id": self.worker_id
+                }
+            ):
+                # Create the workspace context
+                context = self._create_context_from_task(task)
+                
+                # Process the task based on its type
+                if task.task_type == TaskType.TRIAGE:
+                    result = await self._process_triage_task(task, context)
+                elif task.task_type == TaskType.ANALYSIS:
+                    result = await self._process_analysis_task(task, context)
+                elif task.task_type == TaskType.ENHANCEMENT:
+                    result = await self._process_enhancement_task(task, context)
                 else:
-                    result = {"result": str(result)}
-            
-            # Add task completion metadata
-            result["completed_at"] = datetime.utcnow().isoformat()
-            result["worker_id"] = self.worker_id
-            
-            try:
-                # Mark the task as completed
-                await task_queue.complete_task(task, result, self.worker_id)
-                self.stats["tasks_succeeded"] += 1
-                logger.info(f"Task {task.task_id} completed successfully")
-            except Exception as completion_error:
-                logger.error(f"Error marking task {task.task_id} as complete: {str(completion_error)}")
-                # Continue since the task was processed
-            
+                    raise ValueError(f"Unsupported task type: {task.task_type}")
+                
+                # For simplicity, convert any non-dict results to dict
+                if not isinstance(result, dict):
+                    if hasattr(result, "model_dump") and callable(getattr(result, "model_dump")):
+                        result = result.model_dump() 
+                    elif hasattr(result, "dict") and callable(getattr(result, "dict")):
+                        result = result.dict()
+                    else:
+                        result = {"result": str(result)}
+                
+                # Add task completion metadata
+                result["completed_at"] = datetime.utcnow().isoformat()
+                result["worker_id"] = self.worker_id
+                
+                try:
+                    # Mark the task as completed
+                    await task_queue.complete_task(task, result, self.worker_id)
+                    self.stats["tasks_succeeded"] += 1
+                    logger.info(f"Task {task.task_id} completed successfully")
+                except Exception as completion_error:
+                    logger.error(f"Error marking task {task.task_id} as complete: {str(completion_error)}")
+                    # Continue since the task was processed
         except Exception as e:
             logger.error(f"Error processing task {task.task_id}: {str(e)}")
             traceback.print_exc()

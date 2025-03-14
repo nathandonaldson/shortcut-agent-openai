@@ -16,6 +16,7 @@ import asyncio
 import argparse
 import logging
 from datetime import datetime
+from typing import Dict, Any
 
 # Set environment variables for real API usage
 os.environ["USE_MOCK_AGENTS"] = "false"  # Use real OpenAI agents
@@ -65,6 +66,124 @@ def get_api_key(workspace_id: str) -> str:
         raise ValueError(f"No API key found for workspace: {workspace_id}")
         
     return api_key
+
+def _format_analysis_comment(analysis_results: Dict[str, Any], story_id: str) -> str:
+    """
+    Format analysis results as a Markdown comment.
+    
+    Args:
+        analysis_results: Analysis results dictionary
+        story_id: Story ID
+        
+    Returns:
+        Formatted Markdown comment
+    """
+    # Start building the comment
+    comment = f"## 📊 Story Analysis Results\n\n"
+    
+    # Overall score
+    overall_score = analysis_results.get('overall_score', 'N/A')
+    comment += f"**Overall Quality Score**: {overall_score}/10\n\n"
+    
+    # Summary
+    summary = analysis_results.get('summary', 'No summary provided')
+    comment += f"### Summary\n{summary}\n\n"
+    
+    # Title analysis
+    title_analysis = analysis_results.get('title_analysis', {})
+    if title_analysis:
+        title_score = title_analysis.get('score', 'N/A')
+        comment += f"### Title Analysis\n**Score**: {title_score}/10\n\n"
+        
+        strengths = title_analysis.get('strengths', [])
+        if strengths:
+            comment += "**Strengths**:\n"
+            for strength in strengths:
+                comment += f"- {strength}\n"
+            comment += "\n"
+            
+        weaknesses = title_analysis.get('weaknesses', [])
+        if weaknesses:
+            comment += "**Weaknesses**:\n"
+            for weakness in weaknesses:
+                comment += f"- {weakness}\n"
+            comment += "\n"
+            
+        recommendations = title_analysis.get('recommendations', [])
+        if recommendations:
+            comment += "**Recommendations**:\n"
+            for rec in recommendations:
+                comment += f"- {rec}\n"
+            comment += "\n"
+    
+    # Description analysis
+    desc_analysis = analysis_results.get('description_analysis', {})
+    if desc_analysis:
+        desc_score = desc_analysis.get('score', 'N/A')
+        comment += f"### Description Analysis\n**Score**: {desc_score}/10\n\n"
+        
+        strengths = desc_analysis.get('strengths', [])
+        if strengths:
+            comment += "**Strengths**:\n"
+            for strength in strengths:
+                comment += f"- {strength}\n"
+            comment += "\n"
+            
+        weaknesses = desc_analysis.get('weaknesses', [])
+        if weaknesses:
+            comment += "**Weaknesses**:\n"
+            for weakness in weaknesses:
+                comment += f"- {weakness}\n"
+            comment += "\n"
+            
+        recommendations = desc_analysis.get('recommendations', [])
+        if recommendations:
+            comment += "**Recommendations**:\n"
+            for rec in recommendations:
+                comment += f"- {rec}\n"
+            comment += "\n"
+    
+    # Acceptance criteria analysis
+    ac_analysis = analysis_results.get('acceptance_criteria_analysis', {})
+    if ac_analysis:
+        ac_score = ac_analysis.get('score', 'N/A')
+        comment += f"### Acceptance Criteria Analysis\n**Score**: {ac_score}/10\n\n"
+        
+        strengths = ac_analysis.get('strengths', [])
+        if strengths:
+            comment += "**Strengths**:\n"
+            for strength in strengths:
+                comment += f"- {strength}\n"
+            comment += "\n"
+            
+        weaknesses = ac_analysis.get('weaknesses', [])
+        if weaknesses:
+            comment += "**Weaknesses**:\n"
+            for weakness in weaknesses:
+                comment += f"- {weakness}\n"
+            comment += "\n"
+            
+        recommendations = ac_analysis.get('recommendations', [])
+        if recommendations:
+            comment += "**Recommendations**:\n"
+            for rec in recommendations:
+                comment += f"- {rec}\n"
+            comment += "\n"
+    
+    # Priority areas
+    priority_areas = analysis_results.get('priority_areas', [])
+    if priority_areas:
+        comment += "### Priority Areas for Improvement\n"
+        for area in priority_areas:
+            comment += f"- {area}\n"
+        comment += "\n"
+    
+    # Add footer
+    comment += "\n---\n"
+    comment += "Powered by Shortcut Enhancement System | "
+    comment += f"[View Story](https://app.shortcut.com/{workspace_id}/story/{story_id})"
+    
+    return comment
 
 async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
     """
@@ -165,7 +284,22 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
                 logger.info(f"Analysis completed with result: {analysis_result}")
                 
                 # Store analysis results
-                triage_result["analysis_results"] = analysis_result.get("result", {})
+                analysis_results = analysis_result.get("result", {})
+                triage_result["analysis_results"] = analysis_results
+                
+                # Add analysis as a comment to the story
+                logger.info("Adding analysis results as a comment to the story")
+                
+                # Format the analysis as a markdown comment
+                analysis_comment = _format_analysis_comment(analysis_results, story_id)
+                
+                # Add the comment to the story
+                from tools.shortcut.shortcut_tools import add_comment
+                comment_result = await add_comment(story_id, api_key, analysis_comment)
+                logger.info(f"Comment added with ID: {comment_result.get('id')}")
+                
+                # Store comment results
+                triage_result["comment_results"] = comment_result
                 
             elif context.workflow_type.name == "ENHANCE":
                 from shortcut_agents.analysis.analysis_agent import create_analysis_agent
@@ -181,7 +315,22 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
                 logger.info(f"Analysis completed with result: {analysis_result}")
                 
                 # Store analysis results
-                triage_result["analysis_results"] = analysis_result.get("result", {})
+                analysis_results = analysis_result.get("result", {})
+                triage_result["analysis_results"] = analysis_results
+                
+                # Add analysis as a comment to the story
+                logger.info("Adding analysis results as a comment to the story")
+                
+                # Format the analysis as a markdown comment
+                analysis_comment = _format_analysis_comment(analysis_results, story_id)
+                
+                # Add the comment to the story
+                from tools.shortcut.shortcut_tools import add_comment
+                comment_result = await add_comment(story_id, api_key, analysis_comment)
+                logger.info(f"Comment added with ID: {comment_result.get('id')}")
+                
+                # Store comment results
+                triage_result["comment_results"] = comment_result
                 
                 # Then run update with the analysis results
                 logger.info("Creating update agent")
@@ -192,7 +341,7 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
                     "story_id": context.story_id,
                     "workspace_id": context.workspace_id,
                     "update_type": "enhancement",
-                    "analysis_result": analysis_result.get("result", {})
+                    "analysis_result": analysis_results
                 }
                 
                 # Run update agent
@@ -275,10 +424,26 @@ async def main():
             # Display analysis results if present
             if 'analysis_results' in result:
                 analysis = result['analysis_results']
-                print(f"\nAnalysis Score: {analysis.get('quality_score', 'N/A')}")
-                print("\nRecommendations:")
-                for rec in analysis.get('recommendations', []):
-                    print(f"  - {rec}")
+                overall_score = analysis.get('overall_score', 'N/A')
+                print(f"\nAnalysis Score: {overall_score}/10")
+                
+                # Print summary if available
+                summary = analysis.get('summary')
+                if summary:
+                    print(f"\nSummary: {summary}")
+                
+                # Print priority areas
+                priority_areas = analysis.get('priority_areas', [])
+                if priority_areas:
+                    print("\nPriority Areas:")
+                    for area in priority_areas:
+                        print(f"  - {area}")
+            
+            # Display comment results if present
+            if 'comment_results' in result:
+                comment = result['comment_results']
+                print(f"\nComment Added: Yes (ID: {comment.get('id')})")
+                print(f"View comment at: https://app.shortcut.com/{args.workspace}/story/{args.story}")
                     
             # Display update results if present
             if 'update_results' in result:

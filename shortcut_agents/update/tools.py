@@ -5,7 +5,7 @@ Tools for the Update Agent.
 import logging
 from typing import List, Dict, Any, Optional
 
-from tools.shortcut.shortcut_tools import update_story, add_comment, get_story
+from tools.shortcut.shortcut_tools import update_story, add_comment, get_story_details
 
 # Set up logging
 logger = logging.getLogger("update_agent.tools")

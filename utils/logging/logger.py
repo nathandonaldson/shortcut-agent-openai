@@ -192,6 +192,21 @@ class StructuredLogger:
         self._add_context_to_record(record)
         self.logger.handle(record)
     
+    def exception(self, msg: str, exc_info=True, **kwargs) -> None:
+        """Log an exception message with traceback and context."""
+        extra = kwargs.copy()
+        for key, value in extra.items():
+            # Store complex values as JSON strings
+            if not isinstance(value, (str, int, float, bool, type(None))):
+                extra[key] = json.dumps(value)
+                
+        record = self.logger.makeRecord(
+            self.name, logging.ERROR, "", 0, msg, (), exc_info, 
+            extra=extra
+        )
+        self._add_context_to_record(record)
+        self.logger.handle(record)
+    
     def critical(self, msg: str, **kwargs) -> None:
         """Log a critical message with context."""
         extra = kwargs.copy()

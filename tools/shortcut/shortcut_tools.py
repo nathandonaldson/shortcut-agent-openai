@@ -64,7 +64,15 @@ def mock_get_story(story_id: str) -> Dict[str, Any]:
     
     # Return a copy of the mock story with the requested ID
     story = MOCK_STORY.copy()
-    story["id"] = int(story_id)
+    
+    # Handle both string and integer IDs
+    try:
+        story_id_int = int(story_id)
+        story["id"] = story_id_int
+    except (ValueError, TypeError):
+        # If we can't convert to int, just use the string ID
+        story["id"] = story_id
+    
     return story
 
 def mock_update_story(story_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -75,7 +83,15 @@ def mock_update_story(story_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     
     # Return a copy of the mock story with updates applied
     story = MOCK_STORY.copy()
-    story["id"] = int(story_id)
+    
+    # Handle both string and integer IDs
+    try:
+        story_id_int = int(story_id)
+        story["id"] = story_id_int
+    except (ValueError, TypeError):
+        # If we can't convert to int, just use the string ID
+        story["id"] = story_id
+    
     story.update(data)
     
     # Updated timestamp
@@ -89,10 +105,17 @@ def mock_create_comment(story_id: str, text: str) -> Dict[str, Any]:
     logger.info(f"[MOCK] Comment text: {text}")
     time.sleep(0.5)  # Simulate API delay
     
+    # Handle both string and integer IDs
+    try:
+        story_id_int = int(story_id)
+    except (ValueError, TypeError):
+        # If we can't convert to int, just use the string ID
+        story_id_int = story_id
+    
     return {
         "id": 98765,
         "text": text,
-        "story_id": int(story_id),
+        "story_id": story_id_int,
         "author_id": "user-system",
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     }

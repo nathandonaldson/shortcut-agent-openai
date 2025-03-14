@@ -81,24 +81,49 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
     
     logger.info(f"Processing story ID: {story_id}")
     
-    # Check if this is a label update
-    changes = webhook_data.get("changes", {})
-    if "labels" not in changes:
-        logger.info("No label changes found in webhook data")
-        return {
-            "processed": False,
-            "reason": "No label changes found",
-            "workspace_id": workspace_context.workspace_id,
-            "story_id": story_id
-        }
+    # Get label changes
+    label_adds = []
     
-    # Check for label additions
-    label_adds = changes.get("labels", {}).get("adds", [])
+    # Check direct changes (old format)
+    changes = webhook_data.get("changes", {})
+    if "labels" in changes and "adds" in changes.get("labels", {}):
+        label_adds.extend(changes["labels"]["adds"])
+    
+    # Check actions[].changes (new format)
+    if "actions" in webhook_data and webhook_data["actions"]:
+        for action in webhook_data["actions"]:
+            action_changes = action.get("changes", {})
+            
+            # Check for label_ids
+            if "label_ids" in action_changes and "adds" in action_changes.get("label_ids", {}):
+                # In this format, we get label IDs
+                label_id_adds = action_changes["label_ids"]["adds"]
+                
+                # If references are provided, map IDs to names
+                if "references" in webhook_data:
+                    for label_ref in webhook_data.get("references", []):
+                        if label_ref.get("entity_type") == "label":
+                            for label_id_obj in label_id_adds:
+                                if isinstance(label_id_obj, dict) and label_id_obj.get("id") == label_ref.get("id"):
+                                    label_adds.append({"name": label_ref.get("name")})
+                                elif isinstance(label_id_obj, int) and label_id_obj == label_ref.get("id"):
+                                    label_adds.append({"name": label_ref.get("name")})
+                else:
+                    # Just add the IDs as is
+                    for label_id_obj in label_id_adds:
+                        if isinstance(label_id_obj, dict) and "name" in label_id_obj:
+                            label_adds.append({"name": label_id_obj.get("name")})
+            
+            # Also check direct labels field
+            if "labels" in action_changes and "adds" in action_changes.get("labels", {}):
+                label_adds.extend(action_changes["labels"]["adds"])
+    
+    # Check if we found any label additions
     if not label_adds:
-        logger.info("No labels added in this update")
+        logger.info("No label additions found in webhook data")
         return {
             "processed": False,
-            "reason": "No labels added",
+            "reason": "No label additions found",
             "workspace_id": workspace_context.workspace_id,
             "story_id": story_id
         }

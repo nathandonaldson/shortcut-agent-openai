@@ -60,9 +60,33 @@ def parse_log_line(line: str) -> Optional[Dict[str, Any]]:
     """
     try:
         # Try to parse as JSON first
-        return json.loads(line)
-    except json.JSONDecodeError:
-        # If not JSON, try to parse as a standard log line
+        # First strip any leading/trailing whitespace, as it might interfere with JSON parsing
+        line = line.strip()
+        
+        # Debugging: print raw line content
+        print(f"[DEBUG] Parsing line: {line[:50]}..." if len(line) > 50 else f"[DEBUG] Parsing line: {line}")
+        
+        try:
+            data = json.loads(line)
+            print(f"[DEBUG] Successfully parsed JSON object with keys: {', '.join(list(data.keys()))}")
+            return data
+        except json.JSONDecodeError as e:
+            print(f"[DEBUG] JSON decode error: {str(e)}")
+            # If the error is unexpected end of data, we might have truncated JSON
+            if "Expecting ',' delimiter" in str(e) or "Unterminated string" in str(e):
+                print("[DEBUG] Trying to fix malformed JSON...")
+                # Try to fix potential truncation by adding closing brace
+                if not line.endswith('}'):
+                    fixed_line = line + '}'
+                    try:
+                        data = json.loads(fixed_line)
+                        print("[DEBUG] Fixed JSON parse successful")
+                        return data
+                    except json.JSONDecodeError:
+                        print("[DEBUG] Failed to fix JSON with simple repair")
+                
+        # If JSON parsing failed, try to parse as a standard log line
+        print("[DEBUG] Trying standard log format")
         try:
             # Example format: 2023-01-01 12:34:56,789 - component - LEVEL - Message
             parts = line.split(" - ", 3)
@@ -75,15 +99,23 @@ def parse_log_line(line: str) -> Optional[Dict[str, Any]]:
                 except ValueError:
                     timestamp = datetime.now()  # Fallback
                 
-                return {
+                data = {
                     "timestamp": timestamp.isoformat(),
                     "logger": component.strip(),
                     "level": level.strip(),
                     "message": message.strip()
                 }
-        except Exception:
-            pass
+                print("[DEBUG] Parsed standard log format successfully")
+                return data
+            else:
+                print(f"[DEBUG] Standard format failed: found {len(parts)} parts, expected 4")
+        except Exception as e:
+            print(f"[DEBUG] Error parsing standard format: {str(e)}")
         
+        print("[DEBUG] Could not parse log line with any method")
+        return None
+    except Exception as e:
+        print(f"[DEBUG] Unexpected error while parsing log line: {str(e)}")
         return None
 
 def get_component_color(component: str) -> str:
@@ -124,11 +156,16 @@ def format_log_entry(entry: Dict[str, Any], show_timestamp: bool = True) -> str:
     Returns:
         Formatted log line
     """
+    # Debugging: print the raw entry
+    print(f"[DEBUG] Formatting entry: {str(entry)[:100]}...")
+    
     # Extract common fields
     timestamp = entry.get("timestamp", "")
     component = entry.get("logger", entry.get("component", "unknown"))
     level = entry.get("level", "INFO")
     message = entry.get("message", "")
+    
+    print(f"[DEBUG] Extracted fields: timestamp={timestamp}, component={component}, level={level}")
     
     # Format timestamp if present and requested
     timestamp_str = ""
@@ -136,12 +173,15 @@ def format_log_entry(entry: Dict[str, Any], show_timestamp: bool = True) -> str:
         try:
             # Convert ISO format to readable format
             if "T" in timestamp:
+                print(f"[DEBUG] Converting ISO timestamp: {timestamp}")
                 dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                 timestamp_str = dt.strftime("%Y-%m-%d %H:%M:%S")
             else:
                 timestamp_str = timestamp
             timestamp_str = f"{COLORS['GRAY']}{timestamp_str}{COLORS['RESET']} | "
-        except Exception:
+            print(f"[DEBUG] Formatted timestamp: {timestamp_str}")
+        except Exception as e:
+            print(f"[DEBUG] Error formatting timestamp: {str(e)}")
             timestamp_str = f"{COLORS['GRAY']}{timestamp}{COLORS['RESET']} | "
     
     # Get colors
@@ -163,7 +203,8 @@ def format_log_entry(entry: Dict[str, Any], show_timestamp: bool = True) -> str:
             if isinstance(value, (dict, list)):
                 try:
                     value_str = json.dumps(value, ensure_ascii=False)
-                except Exception:
+                except Exception as e:
+                    print(f"[DEBUG] Error serializing complex value for key {key}: {str(e)}")
                     value_str = str(value)
             else:
                 value_str = str(value)
@@ -176,6 +217,7 @@ def format_log_entry(entry: Dict[str, Any], show_timestamp: bool = True) -> str:
         context_str = " ".join(context_fields)
         line += f"\n{COLORS['GRAY']}    {context_str}{COLORS['RESET']}"
     
+    print(f"[DEBUG] Final formatted line: {line[:100]}...")
     return line
 
 def read_log_file(file_path: str) -> List[Dict[str, Any]]:

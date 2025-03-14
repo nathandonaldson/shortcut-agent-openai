@@ -333,13 +333,19 @@ class TaskWorker:
             # Run full agent with SDK for proper integration
             result = await agent.run(webhook_data, context)
             
-            # Instead of scheduling follow-up tasks, just log what should happen next
+            # Schedule follow-up tasks based on the workflow type
             if context.workflow_type == WorkflowType.ENHANCE:
-                logger.info(f"Enhancement workflow determined for story {context.story_id}")
+                logger.info(f"Enhancement workflow determined for story {context.story_id} - scheduling enhancement task")
                 result["next_workflow"] = "enhancement"
+                
+                # Schedule an enhancement task
+                await self._schedule_enhancement_task(context)
             elif context.workflow_type == WorkflowType.ANALYSE:
-                logger.info(f"Analysis workflow determined for story {context.story_id}")
+                logger.info(f"Analysis workflow determined for story {context.story_id} - scheduling analysis task")
                 result["next_workflow"] = "analysis"
+                
+                # Schedule an analysis task
+                await self._schedule_analysis_task(context)
             else:
                 logger.info(f"No specific workflow determined for story {context.story_id}")
         except Exception as e:

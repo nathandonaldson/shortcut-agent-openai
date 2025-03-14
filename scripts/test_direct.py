@@ -76,7 +76,7 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
         workflow_type: Workflow type ("enhance" or "analyse")
         
     Returns:
-        The result of the workflow
+        Tuple of (result, context) with the workflow result and context
     """
     logger.info(f"Running direct test for {workflow_type} on story {story_id}")
     
@@ -128,7 +128,7 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
         result = await process_webhook(webhook_payload, context)
         
         logger.info(f"Workflow completed with result: {result}")
-        return result
+        return result, context
     except Exception as e:
         logger.error(f"Error in workflow: {str(e)}")
         raise
@@ -153,7 +153,7 @@ async def main():
     logger.info(f"  Using real OpenAI and Shortcut APIs")
     
     try:
-        result = await run_direct_test(args.workspace, args.story, args.workflow)
+        result, context = await run_direct_test(args.workspace, args.story, args.workflow)
         
         print("\n" + "=" * 80)
         print(f"DIRECT TEST RESULT: {'✅ SUCCESS' if result.get('status') == 'success' else '❌ FAILED'}")
@@ -162,14 +162,50 @@ async def main():
         print(f"Story ID:     {args.story}")
         print(f"Workflow:     {args.workflow}")
         
+        # Display story details
+        if context and context.story_data:
+            story = context.story_data
+            print("\nSTORY DETAILS:")
+            print(f"Name:        {story.get('name', 'Unknown')}")
+            
+            # Display labels
+            labels = story.get('labels', [])
+            if labels:
+                label_names = [label.get('name', '') for label in labels]
+                print(f"Labels:      {', '.join(label_names)}")
+            else:
+                print("Labels:      None")
+                
+            # Display type and status if available
+            if 'story_type' in story:
+                print(f"Type:        {story.get('story_type', 'Unknown')}")
+            if 'workflow_state_name' in story:
+                print(f"Status:      {story.get('workflow_state_name', 'Unknown')}")
+        
+        # Display result details
+        print("\nRESULT:")
         if result.get('status') == 'success':
+            agent_result = result.get('result', {})
+            
+            # Display workflow determination
+            workflow = agent_result.get('workflow')
+            processed = agent_result.get('processed', False)
+            reason = agent_result.get('reason', '')
+            
+            print(f"Processed:   {processed}")
+            print(f"Workflow:    {workflow if workflow else 'None'}")
+            if reason:
+                print(f"Reason:      {reason}")
+            
+            # Display analysis results if present
             if 'analysis_results' in result:
                 analysis = result['analysis_results']
-                print(f"Analysis Score: {analysis.get('quality_score', 'N/A')}")
+                print(f"\nAnalysis Score: {analysis.get('quality_score', 'N/A')}")
                 print("\nRecommendations:")
                 for rec in analysis.get('recommendations', []):
                     print(f"  - {rec}")
                     
+            # Display update results if present
             if 'update_results' in result:
                 update = result['update_results']
                 print(f"\nUpdate Success: {update.get('success', False)}")

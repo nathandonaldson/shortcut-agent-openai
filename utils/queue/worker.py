@@ -299,14 +299,14 @@ class TaskWorker:
         # Process with triage agent
         webhook_data = task.payload.get("webhook_data", {})
         
-        # Skip the SDK process_webhook and use the simplified version directly
-        logger.info("Using simplified triage agent for task processing")
+        # Use full triage agent with SDK
+        logger.info("Using full triage agent with OpenAI SDK for task processing")
         from shortcut_agents.triage.triage_agent import create_triage_agent
         agent = create_triage_agent()
         
         try:
-            # Run simplified version directly to avoid SDK issues
-            result = await agent.run_simplified(webhook_data, context)
+            # Run full agent with SDK for proper integration
+            result = await agent.run(webhook_data, context)
             
             # Instead of scheduling follow-up tasks, just log what should happen next
             if context.workflow_type == WorkflowType.ENHANCE:

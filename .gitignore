@@ -15,3 +15,4 @@ env/
 agent_venv/
 *.log
 .DS_Store
+pre_finalization_backup/

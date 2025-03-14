@@ -145,11 +145,9 @@ class TaskQueueManager:
     
     def _get_queue_key(self, task_type: str) -> str:
         """Get the Redis key for a queue by task type"""
-        # Make sure we're using the pending queue prefix + task type
-        # Our worker looks for task_queue:pending by default
-        key = f"{self.queue_prefix}{TaskStatus.PENDING}"
-        logger.info(f"Generated queue key: {key}, wanted for task type: {task_type}")
-        return key
+        # The worker iterates through task types and checks task_queue:pending
+        # So we need to just use a single consistent key
+        return f"{self.queue_prefix}{TaskStatus.PENDING}"
     
     def _get_processing_key(self, worker_id: str) -> str:
         """Get the Redis key for processing tasks by worker"""
@@ -185,15 +183,24 @@ class TaskQueueManager:
         # Store the task data
         await redis.set(task_key, task_data)
         
+        # Before adding, check if the queue already has anything in it
+        existing_count = await redis.zcard(queue_key)
+        logger.info(f"Queue {queue_key} has {existing_count} tasks before adding new task")
+        
         # Add to the appropriate queue with priority as score (lower = higher priority)
         try:
-            await redis.zadd(queue_key, {task.task_id: task.priority})
-            logger.info(f"Successfully added task {task.task_id} to queue {queue_key}")
+            # Use ZADD NX to prevent duplication
+            result = await redis.zadd(queue_key, {task.task_id: task.priority}, nx=True)
+            logger.info(f"Successfully added task {task.task_id} to queue {queue_key}, result: {result}")
+        
+            # Verify task was added
+            new_count = await redis.zcard(queue_key)
+            if new_count > existing_count:
+                logger.info(f"Task added successfully. Queue now has {new_count} tasks.")
+            else:
+                logger.warning(f"Task might not have been added! Queue size unchanged: {new_count}")
         except Exception as e:
             logger.error(f"Error adding task to queue: {str(e)}")
-            # Let's try with the pending queue specifically
-            await redis.zadd("task_queue:pending", {task.task_id: task.priority})
-            logger.info(f"Added task to generic pending queue as fallback")
         
         logger.info(f"Added task {task.task_id} to queue {task.task_type} with priority {task.priority}")
         

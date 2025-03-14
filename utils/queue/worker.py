@@ -156,6 +156,12 @@ class TaskWorker:
         
         while self.running:
             try:
+                # Debug: First check if there are any tasks in the queue
+                redis = await task_queue.get_redis()
+                queue_key = task_queue._get_queue_key("pending")  # Just use pending directly
+                pending_count = await redis.zcard(queue_key)
+                logger.info(f"Queue {queue_key} has {pending_count} tasks pending")
+                
                 # Get the next task
                 task = await task_queue.get_next_task(self.task_types, self.worker_id)
                 
@@ -164,11 +170,13 @@ class TaskWorker:
                     # This avoids event loop issues
                     self.active_tasks.add(task.task_id)
                     try:
+                        logger.info(f"Processing task: {task.task_id} of type {task.task_type}")
                         await self._process_task(task)
                     finally:
                         self.active_tasks.discard(task.task_id)
                 else:
                     # No tasks available, wait before polling again
+                    logger.debug(f"No tasks available, waiting {self.polling_interval}s...")
                     await asyncio.sleep(self.polling_interval)
             
             except Exception as e:

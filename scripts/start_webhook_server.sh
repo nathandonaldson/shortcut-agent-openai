@@ -25,6 +25,22 @@ mkdir -p logs
 # Set environment variables for testing
 export PYTHONPATH=$PWD
 
+# Load environment variables from .env file if it exists
+ENV_FILE=".env"
+if [ -f "$ENV_FILE" ]; then
+  echo "Loading environment variables from $ENV_FILE"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # Skip comments and empty lines
+    if [[ ! "$line" =~ ^#.*$ ]] && [[ -n "$line" ]]; then
+      # Export each line as environment variable
+      export "$line"
+    fi
+  done < "$ENV_FILE"
+  echo "Environment variables loaded successfully"
+else
+  echo "No .env file found, using existing environment"
+fi
+
 # Use real agents by default, can override with command line argument
 if [ "${USE_MOCK_AGENTS:-false}" = "true" ]; then
   export USE_MOCK_AGENTS=true
@@ -33,6 +49,24 @@ else
   export USE_MOCK_AGENTS=false
   export USE_REAL_SHORTCUT=true
   echo "Setting USE_MOCK_AGENTS=false and USE_REAL_SHORTCUT=true to use real APIs"
+fi
+
+# Verify required environment variables are set
+if [ "$USE_MOCK_AGENTS" = "false" ]; then
+  # Check for OpenAI API key when using real agents
+  if [ -z "$OPENAI_API_KEY" ]; then
+    echo "ERROR: OPENAI_API_KEY is not set but required when USE_MOCK_AGENTS=false"
+    echo "Please set OPENAI_API_KEY in your environment or .env file"
+    exit 1
+  fi
+  
+  # Check for at least one Shortcut API key
+  if [ -z "$SHORTCUT_API_KEY" ] && [ -z "$SHORTCUT_API_KEY_WORKSPACE1" ]; then
+    echo "WARNING: No Shortcut API keys found (SHORTCUT_API_KEY or SHORTCUT_API_KEY_WORKSPACE1)"
+    echo "This may cause webhook processing to fail"
+  else
+    echo "Found Shortcut API keys"
+  fi
 fi
 
 # Start the webhook server in the background

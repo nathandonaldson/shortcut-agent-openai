@@ -13,6 +13,36 @@ import socketserver
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 
+# Try to load .env file if dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # take environment variables from .env
+    print("Loaded environment variables from .env file")
+except ImportError:
+    print("python-dotenv not installed, attempting to install...")
+    try:
+        import subprocess
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "python-dotenv"])
+        print("Successfully installed python-dotenv")
+        from dotenv import load_dotenv
+        load_dotenv()
+        print("Loaded environment variables from .env file")
+    except Exception as e:
+        print(f"Failed to install python-dotenv: {str(e)}")
+        print("Continuing without loading .env file")
+
+# Print OpenAI environment variable status (without revealing values)
+openai_key = os.environ.get("OPENAI_API_KEY")
+shortcut_key = os.environ.get("SHORTCUT_API_KEY")
+shortcut_workspace_key = os.environ.get("SHORTCUT_API_KEY_WORKSPACE1")
+
+print(f"Environment check:")
+print(f"  OPENAI_API_KEY: {'SET' if openai_key else 'NOT SET'}")
+print(f"  SHORTCUT_API_KEY: {'SET' if shortcut_key else 'NOT SET'}")
+print(f"  SHORTCUT_API_KEY_WORKSPACE1: {'SET' if shortcut_workspace_key else 'NOT SET'}")
+print(f"  USE_MOCK_AGENTS: {os.environ.get('USE_MOCK_AGENTS', 'false')}")
+print(f"  USE_REAL_SHORTCUT: {os.environ.get('USE_REAL_SHORTCUT', 'false')}")
+
 # Add parent directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

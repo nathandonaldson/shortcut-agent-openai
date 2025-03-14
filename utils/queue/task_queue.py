@@ -108,14 +108,27 @@ class TaskQueueManager:
             Redis connection
         """
         async with self._redis_lock:
-            if self._redis is None or not self._redis.ping():
+            if self._redis is None:
                 logger.info("Creating new Redis connection")
                 self._redis = aioredis.from_url(
                     self.redis_url,
                     decode_responses=True
                 )
+                # Verify connection
                 await self._redis.ping()
                 logger.info("Redis connection established")
+            else:
+                # Verify existing connection is still alive
+                try:
+                    await self._redis.ping()
+                except Exception as e:
+                    logger.warning(f"Redis connection error: {str(e)}, reconnecting...")
+                    self._redis = aioredis.from_url(
+                        self.redis_url,
+                        decode_responses=True
+                    )
+                    await self._redis.ping()
+                    logger.info("Redis connection re-established")
             
             return self._redis
     

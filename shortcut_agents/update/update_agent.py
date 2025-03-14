@@ -9,6 +9,7 @@ This version is refactored to use the BaseAgent implementation.
 
 import logging
 import datetime
+import uuid
 from typing import Dict, Any, List, Optional
 
 from shortcut_agents.base_agent import BaseAgent, BaseAgentHooks, FunctionTool
@@ -116,7 +117,7 @@ class UpdateAgent(BaseAgent[UpdateResult, Dict[str, Any]]):
         
         # Import function_tool from agents if available
         try:
-            from agents import function_tool
+            from agents import function_tool, Runner, trace
             
             # Create tools list using function_tool
             tools = [
@@ -259,7 +260,7 @@ async def process_update(
     update_data: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    Process a story update using the Update Agent.
+    Process a story update using the Update Agent with proper tracing.
     
     Args:
         workspace_context: Workspace context with API key and IDs
@@ -269,19 +270,38 @@ async def process_update(
     Returns:
         Update result dictionary
     """
-    # Create input for the agent
+    # Create the agent
+    update_agent = create_update_agent()
+    
+    # Prepare input data
     input_data = {
         "story_id": workspace_context.story_id,
         "workspace_id": workspace_context.workspace_id,
         "update_type": update_type
     }
     
-    # Add appropriate result data
     if update_type == "analysis":
         input_data["analysis_result"] = update_data
     else:  # enhancement
         input_data["enhancement_result"] = update_data
     
-    # Create and run the agent
-    agent = create_update_agent()
-    return await agent.run(input_data, workspace_context)
+    # Run the agent with proper tracing configuration
+    result = await Runner.run(
+        starting_agent=update_agent,
+        input=input_data,
+        context=workspace_context,
+        run_config={
+            "workflow_name": f"Update-{workspace_context.workspace_id}-{workspace_context.story_id}",
+            "trace_id": f"trace_{workspace_context.request_id or uuid.uuid4().hex}",
+            "group_id": workspace_context.workspace_id,  # Group by workspace
+            "trace_metadata": {
+                "workspace_id": workspace_context.workspace_id,
+                "story_id": workspace_context.story_id,
+                "update_type": update_type,
+                "request_id": workspace_context.request_id
+            }
+        }
+    )
+    
+    # Return final output as dictionary
+    return result.final_output

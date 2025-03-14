@@ -34,6 +34,7 @@ from utils.logging.webhook import (
     log_triage_decision
 )
 from utils.queue.task_queue import task_queue, Task, TaskType, TaskPriority
+from utils.storage.local_storage import save_trace_info, get_trace_info
 
 # Create component logger
 logger = get_logger("webhook.handler")
@@ -145,6 +146,21 @@ async def handle_webhook(workspace_id: str, webhook_data: Dict[str, Any], reques
     
     # Generate a unique trace ID for this webhook event
     trace_id = f"trace_{uuid.uuid4().hex}"
+    
+    # Save trace information for cross-process correlation
+    trace_info = {
+        "trace_id": trace_id,
+        "group_id": workspace_id,
+        "workflow_name": f"Shortcut-{workspace_id}",
+        "metadata": {
+            "story_id": story_id,
+            "webhook_type": webhook_data.get("action", "unknown"),
+            "client_ip": client_ip,
+            "request_path": request_path,
+            "request_id": request_id
+        }
+    }
+    save_trace_info(workspace_id, story_id, trace_info)
     
     # Use Agent SDK trace if available, otherwise fall back to our internal trace context
     with agent_trace(

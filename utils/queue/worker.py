@@ -45,6 +45,9 @@ from utils.queue.task_queue import task_queue, Task, TaskType, TaskStatus, TaskP
 # Import workspace context
 from context.workspace.workspace_context import WorkspaceContext, WorkflowType
 
+# Import storage utilities
+from utils.storage.local_storage import local_storage, get_trace_info
+
 # Import agent functions
 from shortcut_agents.triage.triage_agent import process_webhook
 from shortcut_agents.analysis.analysis_agent import create_analysis_agent
@@ -248,17 +251,46 @@ class TaskWorker:
         
         # Process the task with tracing if available
         try:
-            # Create proper trace for the entire background task process
-            with trace(
-                workflow_name=f"Background-{task.task_type}-{task.workspace_id}",
-                trace_id=f"trace_{task.task_id}",
-                group_id=task.workspace_id,  # Group by workspace
-                metadata={
+            # Get saved trace info if available for cross-process correlation
+            trace_info = get_trace_info(task.workspace_id, task.story_id)
+            
+            # Use saved trace info or create new trace context
+            if trace_info and "trace_id" in trace_info:
+                # Use the same trace ID from the webhook handler
+                trace_id = trace_info["trace_id"]
+                workflow_name = trace_info.get("workflow_name", f"Background-{task.task_type}-{task.workspace_id}")
+                group_id = trace_info.get("group_id", task.workspace_id)
+                
+                # Merge metadata from the saved trace with task-specific metadata
+                metadata = trace_info.get("metadata", {}).copy()
+                metadata.update({
+                    "story_id": task.story_id,
+                    "task_type": task.task_type,
+                    "task_id": task.task_id,
+                    "worker_id": self.worker_id
+                })
+                
+                logger.info(f"Using existing trace ID for correlation: {trace_id}")
+            else:
+                # Create new trace info
+                trace_id = f"trace_{task.task_id}"
+                workflow_name = f"Background-{task.task_type}-{task.workspace_id}"
+                group_id = task.workspace_id
+                metadata = {
                     "story_id": task.story_id,
                     "task_type": task.task_type,
                     "task_id": task.task_id,
                     "worker_id": self.worker_id
                 }
+                
+                logger.info(f"Creating new trace for task: {trace_id}")
+            
+            # Create proper trace for the entire background task process
+            with trace(
+                workflow_name=workflow_name,
+                trace_id=trace_id,
+                group_id=group_id,  # Group by workspace
+                metadata=metadata
             ):
                 # Create the workspace context
                 context = self._create_context_from_task(task)

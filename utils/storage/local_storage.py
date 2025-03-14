@@ -1,6 +1,6 @@
 """
 Local storage implementation for development purposes.
-Uses an in-memory dictionary to store tasks.
+Uses an in-memory dictionary to store tasks and other data.
 """
 
 import json
@@ -15,8 +15,9 @@ class LocalStorage:
     """Simple in-memory storage for local development"""
     
     def __init__(self):
-        """Initialize an empty storage dictionary"""
-        self.storage: Dict[str, Dict[str, Any]] = {}
+        """Initialize empty storage dictionaries"""
+        self.storage: Dict[str, Dict[str, Any]] = {}  # For tasks
+        self.data: Dict[str, Any] = {}  # For other data like traces
         logger.info("Initialized local storage")
     
     def get_task_key(self, workspace_id: str, story_id: str) -> str:
@@ -86,6 +87,39 @@ class LocalStorage:
             logger.info(f"Listed all tasks ({len(tasks)})")
             
         return tasks
+
+# Add trace information storage functions
+def save_trace_info(workspace_id: str, story_id: str, trace_data: Dict[str, Any]) -> None:
+    """
+    Save trace information for cross-process correlation.
+    
+    Args:
+        workspace_id: The workspace ID
+        story_id: The story ID
+        trace_data: Trace information to store
+    """
+    key = f"trace:{workspace_id}:{story_id}"
+    local_storage.data[key] = trace_data
+    logger.info(f"Saved trace info: {key}")
+
+def get_trace_info(workspace_id: str, story_id: str) -> Dict[str, Any]:
+    """
+    Retrieve trace information for cross-process correlation.
+    
+    Args:
+        workspace_id: The workspace ID
+        story_id: The story ID
+        
+    Returns:
+        Trace information or empty dict if not found
+    """
+    key = f"trace:{workspace_id}:{story_id}"
+    trace_info = local_storage.data.get(key, {})
+    if trace_info:
+        logger.info(f"Retrieved trace info: {key}")
+    else:
+        logger.debug(f"Trace info not found: {key}")
+    return trace_info
 
 # Create a singleton instance for use throughout the application
 local_storage = LocalStorage()

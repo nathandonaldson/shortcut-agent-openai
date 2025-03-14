@@ -150,15 +150,23 @@ class TaskWorker:
         """Main worker loop"""
         logger.info(f"Worker {self.worker_id} running, polling interval: {self.polling_interval}s")
         
+        # Initialize Redis connection early to avoid event loop issues
+        redis = await task_queue.get_redis()
+        logger.debug("Pre-initialized Redis connection for worker")
+        
         while self.running:
             try:
                 # Get the next task
                 task = await task_queue.get_next_task(self.task_types, self.worker_id)
                 
                 if task:
-                    # Process the task in the background
+                    # Process the task inline instead of creating a new task
+                    # This avoids event loop issues
                     self.active_tasks.add(task.task_id)
-                    asyncio.create_task(self._process_task(task))
+                    try:
+                        await self._process_task(task)
+                    finally:
+                        self.active_tasks.discard(task.task_id)
                 else:
                     # No tasks available, wait before polling again
                     await asyncio.sleep(self.polling_interval)
@@ -193,23 +201,39 @@ class TaskWorker:
             else:
                 raise ValueError(f"Unsupported task type: {task.task_type}")
             
-            # Mark the task as completed
-            await task_queue.complete_task(task, result, self.worker_id)
-            self.stats["tasks_succeeded"] += 1
+            # For simplicity, convert any non-dict results to dict
+            if not isinstance(result, dict):
+                if hasattr(result, "model_dump") and callable(getattr(result, "model_dump")):
+                    result = result.model_dump() 
+                elif hasattr(result, "dict") and callable(getattr(result, "dict")):
+                    result = result.dict()
+                else:
+                    result = {"result": str(result)}
             
-            logger.info(f"Task {task.task_id} completed successfully")
+            # Add task completion metadata
+            result["completed_at"] = datetime.utcnow().isoformat()
+            result["worker_id"] = self.worker_id
+            
+            try:
+                # Mark the task as completed
+                await task_queue.complete_task(task, result, self.worker_id)
+                self.stats["tasks_succeeded"] += 1
+                logger.info(f"Task {task.task_id} completed successfully")
+            except Exception as completion_error:
+                logger.error(f"Error marking task {task.task_id} as complete: {str(completion_error)}")
+                # Continue since the task was processed
             
         except Exception as e:
             logger.error(f"Error processing task {task.task_id}: {str(e)}")
             traceback.print_exc()
             self.stats["tasks_failed"] += 1
             
-            # Mark the task as failed
-            await task_queue.fail_task(task, str(e), True, self.worker_id)
-        
-        finally:
-            # Remove from active tasks
-            self.active_tasks.discard(task.task_id)
+            try:
+                # Mark the task as failed
+                await task_queue.fail_task(task, str(e), True, self.worker_id)
+            except Exception as fail_error:
+                logger.error(f"Error marking task {task.task_id} as failed: {str(fail_error)}")
+                # Continue execution
     
     def _create_context_from_task(self, task: Task) -> WorkspaceContext:
         """

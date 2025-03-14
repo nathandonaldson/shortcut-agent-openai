@@ -146,13 +146,54 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
                     "data": webhook_data
                 }, f, indent=2)
             
-            # Return success response
-            self._set_response()
-            self.wfile.write(json.dumps({
-                "status": "received",
-                "message": "Webhook logged successfully",
-                "log_file": log_file
-            }).encode('utf-8'))
+            # Process the webhook using the actual handler
+            try:
+                from api.webhook.handler import handle_webhook
+                
+                # Process webhook asynchronously
+                import asyncio
+                logger.info(f"Processing webhook with handler for workspace: {workspace_id}")
+                
+                # Create asyncio event loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # Process webhook with handler
+                handler_result = loop.run_until_complete(
+                    handle_webhook(
+                        workspace_id=workspace_id or "unknown",
+                        webhook_data=webhook_data,
+                        request_path=self.path,
+                        client_ip=client_ip
+                    )
+                )
+                
+                # Log handler result
+                logger.info(f"Webhook handler result: {json.dumps(handler_result)}")
+                
+                # Close the event loop
+                loop.close()
+                
+                # Return success response with handler result
+                self._set_response()
+                self.wfile.write(json.dumps({
+                    "status": "processed",
+                    "message": "Webhook processed successfully",
+                    "log_file": log_file,
+                    "handler_result": handler_result
+                }).encode('utf-8'))
+            except Exception as e:
+                # Log error
+                logger.error(f"Error processing webhook: {str(e)}", exc_info=True)
+                
+                # Return success response for webhook logging only
+                self._set_response()
+                self.wfile.write(json.dumps({
+                    "status": "received",
+                    "message": "Webhook logged successfully but processing failed",
+                    "log_file": log_file,
+                    "error": str(e)
+                }).encode('utf-8'))
             
         except json.JSONDecodeError:
             logger.error("Invalid JSON in webhook payload")

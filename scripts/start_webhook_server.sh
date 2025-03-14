@@ -5,13 +5,16 @@
 PORT=3000
 # Debug mode - starts log follower
 DEBUG=true
+# Use mock agents
+USE_MOCK_AGENTS=false
 
 # Parse command line arguments
-while getopts "p:d:" opt; do
+while getopts "p:d:m:" opt; do
   case $opt in
     p) PORT=$OPTARG ;;
     d) DEBUG=$OPTARG ;;
-    *) echo "Usage: $0 [-p port] [-d true|false]" >&2
+    m) USE_MOCK_AGENTS=$OPTARG ;;
+    *) echo "Usage: $0 [-p port] [-d true|false] [-m true|false]" >&2
        exit 1 ;;
   esac
 done
@@ -21,8 +24,16 @@ mkdir -p logs
 
 # Set environment variables for testing
 export PYTHONPATH=$PWD
-export USE_MOCK_AGENTS=true
-echo "Setting USE_MOCK_AGENTS=true to use refactored agent mocks"
+
+# Use real agents by default, can override with command line argument
+if [ "${USE_MOCK_AGENTS:-false}" = "true" ]; then
+  export USE_MOCK_AGENTS=true
+  echo "Setting USE_MOCK_AGENTS=true to use refactored agent mocks"
+else
+  export USE_MOCK_AGENTS=false
+  export USE_REAL_SHORTCUT=true
+  echo "Setting USE_MOCK_AGENTS=false and USE_REAL_SHORTCUT=true to use real APIs"
+fi
 
 # Start the webhook server in the background
 echo "Starting webhook server on port $PORT..."

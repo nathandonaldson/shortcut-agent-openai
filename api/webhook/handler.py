@@ -5,16 +5,24 @@ Processes incoming webhooks and routes them appropriately.
 
 import os
 import json
-import logging
 import time
 from typing import Dict, Any, Optional
 
 from context.workspace.workspace_context import WorkspaceContext
 from agents.triage.triage_agent import process_webhook
+from utils.logging.logger import get_logger, trace_context
+from utils.logging.webhook import (
+    log_webhook_receipt,
+    log_webhook_validation,
+    log_webhook_processing_start,
+    log_webhook_processing_complete,
+    log_webhook_processing_error,
+    extract_story_id,
+    log_triage_decision
+)
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("webhook_handler")
+# Create component logger
+logger = get_logger("webhook.handler")
 
 def get_api_key(workspace_id: str) -> str:
     """
@@ -58,101 +66,188 @@ def validate_webhook(data: Dict[str, Any], workspace_id: str) -> bool:
         
     # Check if it's a story update
     if data.get("action") != "update":
-        logger.info("Ignoring non-update webhook event")
-        return False
+        action_found = False
+        if "actions" in data and data["actions"]:
+            for action in data["actions"]:
+                if action.get("action") == "update":
+                    action_found = True
+                    break
+        
+        if not action_found:
+            logger.info("Ignoring non-update webhook event")
+            return False
         
     # Check if there's a label change
+    label_change_found = False
+    
+    # Check direct "changes" field (old format)
     changes = data.get("changes", {})
-    if "labels" not in changes:
+    if "labels" in changes:
+        label_change_found = True
+    
+    # Check actions[].changes format (new format)
+    if "actions" in data and data["actions"]:
+        for action in data["actions"]:
+            action_changes = action.get("changes", {})
+            if "label_ids" in action_changes or "labels" in action_changes:
+                label_change_found = True
+                break
+    
+    if not label_change_found:
         logger.info("Ignoring update without label changes")
         return False
         
     return True
 
-def extract_story_id(webhook_data: Dict[str, Any]) -> Optional[str]:
-    """
-    Extract the story ID from webhook data.
-    
-    Args:
-        webhook_data: The webhook data
-        
-    Returns:
-        The story ID or None if not found
-    """
-    # Extract story ID - exact field name depends on webhook structure
-    # This is a simplified example - you may need to adjust based on actual payload
-    if "id" in webhook_data:
-        return str(webhook_data["id"])
-    elif "story_id" in webhook_data:
-        return str(webhook_data["story_id"])
-    elif "resource" in webhook_data and "id" in webhook_data["resource"]:
-        return str(webhook_data["resource"]["id"])
-    else:
-        logger.warning("Could not extract story ID from webhook data")
-        return None
-
-async def handle_webhook(workspace_id: str, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
+async def handle_webhook(workspace_id: str, webhook_data: Dict[str, Any], request_path: str = "", client_ip: str = "") -> Dict[str, Any]:
     """
     Main webhook handler function.
     
     Args:
         workspace_id: The workspace ID from the URL
         webhook_data: The webhook payload
+        request_path: The request path (for logging)
+        client_ip: The client IP address (for logging)
         
     Returns:
         Response data
     """
     start_time = time.time()
-    logger.info(f"Received webhook for workspace: {workspace_id}")
     
-    # Basic validation
-    if not validate_webhook(webhook_data, workspace_id):
-        return {
-            "status": "skipped",
-            "reason": "Invalid or irrelevant webhook data",
-            "workspace_id": workspace_id
-        }
+    # Log webhook receipt and get request ID for correlation
+    request_id = log_webhook_receipt(
+        workspace_id=workspace_id,
+        path=request_path,
+        client_ip=client_ip,
+        headers={"Content-Type": "application/json"},
+        data=webhook_data
+    )
     
     # Extract story ID
     story_id = extract_story_id(webhook_data)
-    if not story_id:
-        return {
-            "status": "error",
-            "reason": "Could not extract story ID",
-            "workspace_id": workspace_id
-        }
     
-    try:
-        # Get API key for the workspace
-        api_key = get_api_key(workspace_id)
-        
-        # Create workspace context
-        context = WorkspaceContext(
+    # Set up trace context
+    with trace_context(
+        request_id=request_id,
+        workspace_id=workspace_id,
+        story_id=story_id
+    ):
+        # Basic validation
+        is_valid = validate_webhook(webhook_data, workspace_id)
+        log_webhook_validation(
+            request_id=request_id,
             workspace_id=workspace_id,
-            api_key=api_key,
-            story_id=story_id
+            story_id=story_id,
+            is_valid=is_valid,
+            reason="Invalid or irrelevant webhook data" if not is_valid else None
         )
         
-        # Process the webhook with the triage agent
-        result = await process_webhook(webhook_data, context)
+        if not is_valid:
+            # Calculate processing time
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            return {
+                "status": "skipped",
+                "reason": "Invalid or irrelevant webhook data",
+                "workspace_id": workspace_id,
+                "request_id": request_id,
+                "duration_ms": duration_ms
+            }
         
-        # Calculate processing time
-        processing_time = time.time() - start_time
-        logger.info(f"Webhook processed in {processing_time:.2f} seconds")
+        # Verify story ID
+        if not story_id:
+            # Log error
+            log_webhook_processing_error(
+                request_id=request_id,
+                workspace_id=workspace_id,
+                story_id=None,
+                error="Could not extract story ID",
+                duration_ms=int((time.time() - start_time) * 1000)
+            )
+            
+            return {
+                "status": "error",
+                "reason": "Could not extract story ID",
+                "workspace_id": workspace_id,
+                "request_id": request_id
+            }
         
-        return {
-            "status": "processed",
-            "workspace_id": workspace_id,
-            "story_id": story_id,
-            "processing_time": f"{processing_time:.2f}s",
-            "result": result
-        }
-        
-    except Exception as e:
-        logger.exception(f"Error processing webhook: {str(e)}")
-        return {
-            "status": "error",
-            "reason": str(e),
-            "workspace_id": workspace_id,
-            "story_id": story_id if story_id else None
-        }
+        try:
+            # Log processing start
+            log_webhook_processing_start(
+                request_id=request_id,
+                workspace_id=workspace_id,
+                story_id=story_id
+            )
+            
+            # Get API key for the workspace
+            api_key = get_api_key(workspace_id)
+            
+            # Create workspace context with request ID
+            context = WorkspaceContext(
+                workspace_id=workspace_id,
+                api_key=api_key,
+                story_id=story_id
+            )
+            
+            # Add request_id to context for correlation
+            context.request_id = request_id
+            
+            # Process the webhook with the triage agent
+            logger.info(f"Processing webhook with triage agent")
+            result = await process_webhook(webhook_data, context)
+            
+            # Log triage decision
+            log_triage_decision(
+                request_id=request_id,
+                workspace_id=workspace_id,
+                story_id=story_id,
+                decision=result.get("workflow", "unknown"),
+                triage_result=result
+            )
+            
+            # Calculate processing time
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Log processing complete
+            log_webhook_processing_complete(
+                request_id=request_id,
+                workspace_id=workspace_id,
+                story_id=story_id,
+                result=result,
+                duration_ms=duration_ms
+            )
+            
+            return {
+                "status": "processed",
+                "workspace_id": workspace_id,
+                "story_id": story_id,
+                "request_id": request_id,
+                "duration_ms": duration_ms,
+                "result": result
+            }
+            
+        except Exception as e:
+            # Calculate processing time
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Log error
+            log_webhook_processing_error(
+                request_id=request_id,
+                workspace_id=workspace_id,
+                story_id=story_id,
+                error=str(e),
+                duration_ms=duration_ms
+            )
+            
+            # Re-log as standard logger for compatibility
+            logger.exception(f"Error processing webhook: {str(e)}")
+            
+            return {
+                "status": "error",
+                "reason": str(e),
+                "workspace_id": workspace_id,
+                "story_id": story_id if story_id else None,
+                "request_id": request_id,
+                "duration_ms": duration_ms
+            }

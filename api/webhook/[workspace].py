@@ -29,8 +29,17 @@ async def handler(request):
             "body": json.dumps({"error": "Invalid JSON"})
         }
     
+    # Get request path and client IP for logging
+    request_path = request.path
+    client_ip = request.headers.get('x-forwarded-for') or request.headers.get('x-real-ip') or '127.0.0.1'
+    
     # Process the webhook
-    result = await handle_webhook(workspace_id, body)
+    result = await handle_webhook(
+        workspace_id=workspace_id, 
+        webhook_data=body,
+        request_path=request_path,
+        client_ip=client_ip
+    )
     
     # Return a success response
     return {

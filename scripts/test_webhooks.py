@@ -5,6 +5,7 @@ This script simulates the Vercel serverless function and logs incoming webhooks.
 """
 
 import os
+import sys
 import json
 import logging
 import http.server
@@ -12,16 +13,37 @@ import socketserver
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("webhook_test.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("webhook_test")
+# Add parent directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Initialize logging system (import after adding parent to path)
+try:
+    from utils.logging.logger import get_logger, configure_global_logging
+    from utils.logging.webhook import log_webhook_receipt, extract_story_id
+    
+    # Configure global logging
+    configure_global_logging(
+        log_dir="logs",
+        log_filename="webhook_test.log",
+        console_level="INFO",
+        file_level="DEBUG"
+    )
+    
+    # Get logger
+    logger = get_logger("webhook_test")
+    using_new_logging = True
+except ImportError:
+    # Fall back to basic logging if imports fail
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler("webhook_test.log"),
+            logging.StreamHandler()
+        ]
+    )
+    logger = logging.getLogger("webhook_test")
+    using_new_logging = False
 
 # Create logs directory if it doesn't exist
 os.makedirs("logs", exist_ok=True)
@@ -89,10 +111,29 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         try:
             webhook_data = json.loads(post_data.decode('utf-8')) if post_data else {}
             
-            # Log the request
-            logger.info(f"Received webhook for workspace: {workspace_id}")
-            logger.info(f"Webhook data: {json.dumps(webhook_data)[:500]}...")  # Log first 500 chars
-            logger.info(f"Saving webhook data to: {log_file}")
+            # Use new logging system if available
+            if using_new_logging:
+                # Log webhook with structured logging
+                request_id = log_webhook_receipt(
+                    workspace_id=workspace_id or "unknown",
+                    path=self.path,
+                    client_ip=client_ip,
+                    headers=dict(self.headers),
+                    data=webhook_data
+                )
+                
+                # Extract story ID for logging
+                story_id = extract_story_id(webhook_data)
+                
+                # Traditional logging for compatibility
+                logger.info(f"Received webhook for workspace: {workspace_id}")
+                logger.info(f"Webhook data: {json.dumps(webhook_data)[:500]}...")  # Log first 500 chars
+                logger.info(f"Saving webhook data to: {log_file}")
+            else:
+                # Traditional logging
+                logger.info(f"Received webhook for workspace: {workspace_id}")
+                logger.info(f"Webhook data: {json.dumps(webhook_data)[:500]}...")  # Log first 500 chars
+                logger.info(f"Saving webhook data to: {log_file}")
             
             # Save webhook data to file
             with open(log_file, 'w') as f:

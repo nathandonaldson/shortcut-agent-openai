@@ -13,6 +13,7 @@ An intelligent, agent-based system that automatically improves Shortcut stories 
 - **Analysis-Only Workflow**: Analyzes stories tagged with "analyse" and adds results as comments, changing the tag to "analysed"
 - **LLM-Driven Orchestration**: Uses OpenAI Agent SDK for intelligent, dynamic agent handoffs based on contextual reasoning
 - **Environment-Aware Configuration**: Automatically switches between development and production settings
+- **Comprehensive Logging System**: Structured, contextual logging with OpenAI Agent SDK integration and real-time viewing
 
 ## Architecture
 
@@ -86,6 +87,33 @@ lt --port 3000 --subdomain shortcut-enhancement
 python scripts/simulate_webhook.py --workspace workspace1 --action update --label enhance --url https://shortcut-enhancement.loca.lt
 ```
 
+## Logging and Monitoring
+
+The system includes a comprehensive logging framework that provides visibility into webhook processing and agent execution:
+
+```bash
+# Follow logs in real-time
+python scripts/follow_logs.py
+
+# Follow logs for the most recent webhook
+python scripts/follow_logs.py --webhook
+
+# View logs for a specific request ID
+python scripts/follow_logs.py --request-id <request-id>
+
+# Run the log example to see how it works
+python scripts/log_example.py
+```
+
+The logging system features:
+- Structured JSON logging
+- Trace correlation with OpenAI Agent SDK
+- Context-rich logs with workspace, story, and request IDs
+- Real-time log following
+- Color-coded log viewing
+
+See `utils/logging/README.md` for detailed documentation.
+
 ## Setting Up Webhooks in Shortcut
 
 ```bash
@@ -146,6 +174,7 @@ python scripts/toggle_mode.py production
 ├── prompts/                      # Agent prompts
 ├── utils/
 │   ├── storage/                  # Storage utilities
+│   ├── logging/                  # Comprehensive logging system
 │   └── ...                       # Other utilities
 ├── config/
 │   ├── development/              # Development environment config
@@ -159,6 +188,8 @@ python scripts/toggle_mode.py production
 │   ├── test_webhooks.py          # Webhook testing server
 │   ├── simulate_webhook.py       # Webhook simulation tool
 │   ├── start_webhook_server.sh   # Script to start server with ngrok
+│   ├── follow_logs.py            # Real-time log follower
+│   ├── log_example.py            # Logging system example
 │   ├── setup_webhooks.py         # Configure Shortcut webhooks
 │   ├── seed_test_data.py         # Seed test data in Shortcut
 │   ├── setup.py                  # Project setup script
@@ -198,7 +229,9 @@ Events: Story updates (specifically label changes)
 
 ## Detailed Documentation
 
-For more comprehensive documentation, see the `claude.md` file in the repository, which contains detailed implementation notes, architectural decisions, and best practices.
+For more comprehensive documentation, see the following files:
+- `claude.md`: Detailed implementation notes and architectural decisions
+- `utils/logging/README.md`: Comprehensive logging system documentation
 
 ## Contributing
 

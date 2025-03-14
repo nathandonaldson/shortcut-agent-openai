@@ -1,14 +1,17 @@
 #!/bin/bash
-# Script to start the webhook server and ngrok tunnel
+# Script to start the webhook server, ngrok tunnel, and log follower
 
 # Default port
 PORT=3000
+# Debug mode - starts log follower
+DEBUG=true
 
 # Parse command line arguments
-while getopts "p:" opt; do
+while getopts "p:d:" opt; do
   case $opt in
     p) PORT=$OPTARG ;;
-    *) echo "Usage: $0 [-p port]" >&2
+    d) DEBUG=$OPTARG ;;
+    *) echo "Usage: $0 [-p port] [-d true|false]" >&2
        exit 1 ;;
   esac
 done
@@ -21,8 +24,11 @@ echo "Starting webhook server on port $PORT..."
 python3 "$(dirname "$0")/test_webhooks.py" --port $PORT &
 SERVER_PID=$!
 
-# Trap Ctrl+C to stop both processes
-trap "echo 'Stopping webhook server and ngrok...'; kill $SERVER_PID; killall ngrok; exit" INT
+# Track PIDs for cleanup
+PIDS=($SERVER_PID)
+
+# Trap Ctrl+C to stop all processes
+trap "echo 'Stopping all processes...'; for pid in \${PIDS[@]}; do kill \$pid 2>/dev/null; done; killall ngrok 2>/dev/null; exit" INT
 
 # Give the server a moment to start
 sleep 2
@@ -37,6 +43,7 @@ else
   ngrok http $PORT --log=stdout > logs/ngrok.log &
 fi
 NGROK_PID=$!
+PIDS+=($NGROK_PID)
 
 # Wait a moment for ngrok to initialize
 sleep 3
@@ -69,6 +76,45 @@ else
   } > logs/webhook_urls.txt
   
   echo "URLs also saved to logs/webhook_urls.txt"
+fi
+
+# Start log follower if in debug mode
+if [ "$DEBUG" = "true" ]; then
+  echo "Starting log follower in a new terminal..."
+  
+  # Determine the terminal application based on OS
+  if [ "$(uname)" = "Darwin" ]; then
+    # macOS - use Terminal.app or iTerm if available
+    if osascript -e 'tell application "iTerm" to version' &>/dev/null; then
+      # Open in iTerm
+      osascript -e 'tell application "iTerm"' \
+                -e 'set newWindow to (create window with default profile)' \
+                -e 'tell current session of newWindow' \
+                -e "write text \"cd $(pwd) && python3 scripts/follow_logs.py --webhook\"" \
+                -e 'end tell' \
+                -e 'end tell' &
+    else
+      # Open in Terminal.app
+      osascript -e 'tell application "Terminal"' \
+                -e "do script \"cd $(pwd) && python3 scripts/follow_logs.py --webhook\"" \
+                -e 'end tell' &
+    fi
+  else
+    # Linux/other - try to use gnome-terminal, xterm, or just run in background
+    if command -v gnome-terminal &>/dev/null; then
+      gnome-terminal -- bash -c "cd $(pwd) && python3 scripts/follow_logs.py --webhook; exec bash" &
+    elif command -v xterm &>/dev/null; then
+      xterm -e "cd $(pwd) && python3 scripts/follow_logs.py --webhook" &
+    else
+      # Fall back to running in background
+      echo "Could not open a new terminal, starting log follower in background."
+      python3 "$(dirname "$0")/follow_logs.py" --webhook &
+      LOG_FOLLOWER_PID=$!
+      PIDS+=($LOG_FOLLOWER_PID)
+    fi
+  fi
+  
+  echo "Log follower started. You can also manually run: python3 scripts/follow_logs.py --webhook"
 fi
 
 # Wait for the webhook server to exit

@@ -36,6 +36,10 @@ class WorkspaceContext:
         self.analysis_results: Optional[Dict[str, Any]] = None
         self.enhancement_results: Optional[Dict[str, Any]] = None
         
+        # Request tracking
+        self.request_id: Optional[str] = None
+        self.trace_id: Optional[str] = None
+        
     def set_story_data(self, story_data: Dict[str, Any]) -> None:
         """Set the story data for the current context"""
         self.story_data = story_data
@@ -83,6 +87,8 @@ class WorkspaceContext:
             'workflow_type': self.workflow_type.value if self.workflow_type else None,
             'analysis_results': self.analysis_results,
             'enhancement_results': self.enhancement_results,
+            'request_id': self.request_id,
+            'trace_id': self.trace_id,
             # Don't include the API key for security
             # Don't include the full story data to save space
         }
@@ -106,6 +112,13 @@ class WorkspaceContext:
         
         if data.get('enhancement_results'):
             context.enhancement_results = data['enhancement_results']
+        
+        # Set request tracking if present
+        if data.get('request_id'):
+            context.request_id = data['request_id']
+        
+        if data.get('trace_id'):
+            context.trace_id = data['trace_id']
         
         # Set story data if provided
         if story_data:

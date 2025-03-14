@@ -11,12 +11,7 @@ import time
 import uuid
 from typing import Dict, Any, List, Optional
 
-# Try to import from Agent SDK, fall back to base agent if not available
-try:
-    from agents import Agent, Runner, ModelSettings, function_tool, trace
-    AGENT_SDK_AVAILABLE = True
-except ImportError:
-    AGENT_SDK_AVAILABLE = False
+from agents import Agent, Runner, ModelSettings, function_tool, trace, RunConfig
 
 from shortcut_agents.base_agent import BaseAgent, BaseAgentHooks, FunctionTool
 from context.workspace.workspace_context import WorkspaceContext, WorkflowType
@@ -271,45 +266,37 @@ def get_triage_model() -> str:
     # Fall back to o3-mini for development speed
     return "gpt-3.5-turbo"
 
-# Convenience function to create a triage agent
 def create_triage_agent():
     """
-    Create a properly configured triage agent.
-    Uses OpenAI Agent SDK if available, otherwise falls back to the base agent.
+    Create a properly configured triage agent using the OpenAI Agent SDK.
     
     Returns:
         Configured Triage Agent
     """
-    if AGENT_SDK_AVAILABLE:
-        # Use the SDK implementation
-        model = get_triage_model()
-        
-        # Create function tools with proper decoration
-        @function_tool
-        async def get_story_details_tool(story_id: str, api_key: str) -> Dict[str, Any]:
-            """Get details of a Shortcut story."""
-            return await get_story_details(story_id, api_key)
-        
-        # Create the agent with proper configuration
-        agent = Agent(
-            name="Triage Agent",
-            instructions=TRIAGE_SYSTEM_MESSAGE,
-            model=model,
-            model_settings=ModelSettings(
-                temperature=0.2  # Low temperature for consistent, predictable responses
-            ),
-            tools=[get_story_details_tool],
-            output_type=TriageOutput
-        )
-        
-        return agent
-    else:
-        # Fall back to our base agent implementation
-        logger.info("Agent SDK not available, using base agent implementation")
-        return TriageAgent()
+    # Use the SDK implementation
+    model = get_triage_model()
+    
+    # Create function tools with proper decoration
+    @function_tool
+    async def get_story_details_tool(story_id: str, api_key: str) -> Dict[str, Any]:
+        """Get details of a Shortcut story."""
+        return await get_story_details(story_id, api_key)
+    
+    # Create the agent with proper configuration
+    agent = Agent(
+        name="Triage Agent",
+        instructions=TRIAGE_SYSTEM_MESSAGE,
+        model=model,
+        model_settings=ModelSettings(
+            temperature=0.2  # Low temperature for consistent, predictable responses
+        ),
+        tools=[get_story_details_tool],
+        output_type=TriageOutput
+    )
+    
+    return agent
 
 
-# Function for processing webhooks (main entry point)
 async def process_webhook(webhook_data: Dict[str, Any], workspace_context: WorkspaceContext) -> Dict[str, Any]:
     """
     Process a webhook with proper tracing.
@@ -326,54 +313,43 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
     # Create the agent
     triage_agent = create_triage_agent()
     
-    if AGENT_SDK_AVAILABLE:
-        # Run the agent using SDK's Runner for proper tracing
-        try:
-            # Create trace ID from request ID if available
-            trace_id = f"trace_{workspace_context.request_id or uuid.uuid4().hex}"
-            
-            # Prepare run configuration for tracing
-            from agents import RunConfig
-            run_config = RunConfig(
-                workflow_name=f"Triage-{workspace_context.workspace_id}-{workspace_context.story_id}",
-                trace_id=trace_id,
-                metadata={
-                    "workspace_id": workspace_context.workspace_id,
-                    "story_id": workspace_context.story_id,
-                    "request_id": workspace_context.request_id
-                }
-            )
-            
-            # Run the agent with SDK Runner
-            logger.info(f"Running triage agent using OpenAI Agent SDK")
-            result = await Runner.run(
-                starting_agent=triage_agent,
-                input=webhook_data,
-                context=workspace_context,
-                run_config=run_config
-            )
-            
-            # Extract the final output
-            if hasattr(result, "final_output"):
-                final_result = result.final_output
-                # Convert to dict if it's a Pydantic model
-                if hasattr(final_result, "model_dump"):
-                    processed_result = {"result": final_result.model_dump()}
-                else:
-                    processed_result = {"result": final_result}
-                
-                # Log the triage decision
-                if isinstance(processed_result["result"], dict):
-                    workflow = processed_result["result"].get("workflow")
-                    logger.info(f"Triage decision: {workflow or 'skip processing'}")
-                
-                return processed_result
-            else:
-                return {"error": "No result from agent"}
-        except Exception as e:
-            logger.error(f"Error running with Agent SDK: {str(e)}")
-            logger.info("Falling back to base agent implementation")
+    # Create trace ID from request ID if available
+    trace_id = f"trace_{workspace_context.request_id or uuid.uuid4().hex}"
     
-    # If Agent SDK is not available or failed, use base agent
-    logger.info(f"Running triage agent using base implementation")
-    return await triage_agent.run(webhook_data, workspace_context)
+    # Prepare run configuration for tracing
+    run_config = RunConfig(
+        workflow_name=f"Triage-{workspace_context.workspace_id}-{workspace_context.story_id}",
+        trace_id=trace_id,
+        metadata={
+            "workspace_id": workspace_context.workspace_id,
+            "story_id": workspace_context.story_id,
+            "request_id": workspace_context.request_id
+        }
+    )
+    
+    # Run the agent with SDK Runner
+    logger.info(f"Running triage agent using OpenAI Agent SDK")
+    result = await Runner.run(
+        starting_agent=triage_agent,
+        input=webhook_data,
+        context=workspace_context,
+        run_config=run_config
+    )
+    
+    # Extract the final output
+    if hasattr(result, "final_output"):
+        final_result = result.final_output
+        # Convert to dict if it's a Pydantic model
+        if hasattr(final_result, "model_dump"):
+            processed_result = {"result": final_result.model_dump()}
+        else:
+            processed_result = {"result": final_result}
+        
+        # Log the triage decision
+        if isinstance(processed_result["result"], dict):
+            workflow = processed_result["result"].get("workflow")
+            logger.info(f"Triage decision: {workflow or 'skip processing'}")
+        
+        return processed_result
+    else:
+        return {"error": "No result from agent"}

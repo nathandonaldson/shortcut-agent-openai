@@ -50,15 +50,21 @@ class UpdateAgentHooks(BaseAgentHooks[UpdateResult]):
             workspace_context: The workspace context
             result: The update result
         """
-        if hasattr(result, "dict") and callable(result.dict):
+        # Convert result to dictionary supporting both Pydantic v1 and v2
+        if hasattr(result, "model_dump") and callable(result.model_dump):
+            # Pydantic v2
+            result_dict = result.model_dump()
+        elif hasattr(result, "dict") and callable(result.dict):
+            # Pydantic v1
             result_dict = result.dict()
         else:
+            # Fallback
             result_dict = vars(result)
             
         # Store the update results in workspace context
         workspace_context.set_update_results({
             "result": result_dict,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.datetime.now().isoformat()
         })
         
         logger.info(f"Stored update results for story {workspace_context.story_id}")
@@ -108,33 +114,65 @@ class UpdateAgent(BaseAgent[UpdateResult, Dict[str, Any]]):
                 tripwire_triggered=False
             )
         
-        # Create tools list
-        tools = [
-            FunctionTool(
-                function=get_story,
-                description="Get details of a Shortcut story"
-            ),
-            FunctionTool(
-                function=update_story_content,
-                description="Update the content of a Shortcut story (title, description, acceptance criteria)"
-            ),
-            FunctionTool(
-                function=update_story_labels,
-                description="Update the labels/tags on a Shortcut story"
-            ),
-            FunctionTool(
-                function=add_update_comment,
-                description="Add a comment to a Shortcut story with update information"
-            ),
-            FunctionTool(
-                function=format_analysis_comment,
-                description="Format analysis results into a structured comment"
-            ),
-            FunctionTool(
-                function=format_enhancement_comment,
-                description="Format enhancement results into a structured comment"
-            )
-        ]
+        # Import function_tool from agents if available
+        try:
+            from agents import function_tool
+            
+            # Create tools list using function_tool
+            tools = [
+                function_tool(
+                    func=get_story_details,  # Fixed: get_story -> get_story_details
+                    description_override="Get details of a Shortcut story"
+                ),
+                function_tool(
+                    func=update_story_content,
+                    description_override="Update the content of a Shortcut story (title, description, acceptance criteria)"
+                ),
+                function_tool(
+                    func=update_story_labels,
+                    description_override="Update the labels/tags on a Shortcut story"
+                ),
+                function_tool(
+                    func=add_update_comment,
+                    description_override="Add a comment to a Shortcut story with update information"
+                ),
+                function_tool(
+                    func=format_analysis_comment,
+                    description_override="Format analysis results into a structured comment"
+                ),
+                function_tool(
+                    func=format_enhancement_comment,
+                    description_override="Format enhancement results into a structured comment"
+                )
+            ]
+        except ImportError:
+            # Fallback to direct FunctionTool initialization
+            tools = [
+                FunctionTool(
+                    function=get_story_details,  # Fixed: get_story -> get_story_details
+                    description="Get details of a Shortcut story"
+                ),
+                FunctionTool(
+                    function=update_story_content,
+                    description="Update the content of a Shortcut story (title, description, acceptance criteria)"
+                ),
+                FunctionTool(
+                    function=update_story_labels,
+                    description="Update the labels/tags on a Shortcut story"
+                ),
+                FunctionTool(
+                    function=add_update_comment,
+                    description="Add a comment to a Shortcut story with update information"
+                ),
+                FunctionTool(
+                    function=format_analysis_comment,
+                    description="Format analysis results into a structured comment"
+                ),
+                FunctionTool(
+                    function=format_enhancement_comment,
+                    description="Format enhancement results into a structured comment"
+                )
+            ]
         
         # Initialize the base agent
         super().__init__(

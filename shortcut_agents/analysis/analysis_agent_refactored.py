@@ -61,10 +61,15 @@ class AnalysisAgentHooks(BaseAgentHooks[AnalysisResult]):
             workspace_context: The workspace context
             result: The analysis result
         """
-        # Convert result to dictionary if needed
-        if hasattr(result, "dict") and callable(result.dict):
+        # Convert result to dictionary supporting both Pydantic v1 and v2
+        if hasattr(result, "model_dump") and callable(result.model_dump):
+            # Pydantic v2
+            result_dict = result.model_dump()
+        elif hasattr(result, "dict") and callable(result.dict):
+            # Pydantic v1
             result_dict = result.dict()
         else:
+            # Fallback
             result_dict = vars(result)
             
         # Store the analysis results in workspace context
@@ -116,25 +121,49 @@ class AnalysisAgent(BaseAgent[AnalysisResult, Dict[str, Any]]):
                 tripwire_triggered=False
             )
         
-        # Create tools list
-        tools = [
-            FunctionTool(
-                function=analyze_title,
-                description="Analyze a story title for clarity, effectiveness, and quality"
-            ),
-            FunctionTool(
-                function=analyze_description,
-                description="Analyze a story description for completeness, structure, and quality"
-            ),
-            FunctionTool(
-                function=analyze_acceptance_criteria,
-                description="Analyze acceptance criteria if present in the story"
-            ),
-            FunctionTool(
-                function=external_llm_analysis,
-                description="Use an external LLM for sophisticated analysis of specific content"
-            )
-        ]
+        # Import function_tool from agents if available
+        try:
+            from agents import function_tool
+            
+            # Create tools list using function_tool
+            tools = [
+                function_tool(
+                    func=analyze_title,
+                    description_override="Analyze a story title for clarity, effectiveness, and quality"
+                ),
+                function_tool(
+                    func=analyze_description,
+                    description_override="Analyze a story description for completeness, structure, and quality"
+                ),
+                function_tool(
+                    func=analyze_acceptance_criteria,
+                    description_override="Analyze acceptance criteria if present in the story"
+                ),
+                function_tool(
+                    func=external_llm_analysis,
+                    description_override="Use an external LLM for sophisticated analysis of specific content"
+                )
+            ]
+        except ImportError:
+            # Fallback to direct FunctionTool initialization
+            tools = [
+                FunctionTool(
+                    function=analyze_title,
+                    description="Analyze a story title for clarity, effectiveness, and quality"
+                ),
+                FunctionTool(
+                    function=analyze_description,
+                    description="Analyze a story description for completeness, structure, and quality"
+                ),
+                FunctionTool(
+                    function=analyze_acceptance_criteria,
+                    description="Analyze acceptance criteria if present in the story"
+                ),
+                FunctionTool(
+                    function=external_llm_analysis,
+                    description="Use an external LLM for sophisticated analysis of specific content"
+                )
+            ]
         
         # Initialize the base agent
         super().__init__(
@@ -168,23 +197,42 @@ class AnalysisAgent(BaseAgent[AnalysisResult, Dict[str, Any]]):
         
         # Create a simple analysis result
         has_acceptance_criteria = "## Acceptance Criteria" in description
+
+        # Create ComponentScore instances for each component
+        title_analysis = ComponentScore(
+            score=8,
+            strengths=["Clear objective", "Uses action verb"],
+            weaknesses=["Missing context", "Could be more specific"],
+            recommendations=["Add more context to the title", "Make title more specific"]
+        )
+        
+        description_analysis = ComponentScore(
+            score=6,
+            strengths=["Basic information present", "Includes purpose"],
+            weaknesses=["Lacks detail", "Missing background context"],
+            recommendations=["Include more detailed requirements", "Add background context"]
+        )
+        
+        acceptance_criteria_analysis = None
+        if has_acceptance_criteria:
+            acceptance_criteria_analysis = ComponentScore(
+                score=5,
+                strengths=["Basic criteria included"],
+                weaknesses=["Not specific enough", "Missing testable outcomes"],
+                recommendations=["Make criteria more specific", "Add testable outcomes"]
+            )
         
         result = AnalysisResult(
             overall_score=7,
-            title_score=8,
-            description_score=6,
-            acceptance_criteria_score=5 if has_acceptance_criteria else None,
-            recommendations=[
-                "Add more context to the title",
-                "Include more detailed requirements in the description",
-                "Add background context to help understand the purpose",
-                "Make acceptance criteria more specific with testable outcomes"
-            ],
+            title_analysis=title_analysis,
+            description_analysis=description_analysis,
+            acceptance_criteria_analysis=acceptance_criteria_analysis,
             priority_areas=[
                 "Improve description detail", 
                 "Add acceptance criteria", 
                 "Clarify expected outcomes"
-            ]
+            ],
+            summary="This story needs improvements in description detail and acceptance criteria. The title is fairly good but could be more specific."
         )
         
         # Create metadata
@@ -197,12 +245,19 @@ class AnalysisAgent(BaseAgent[AnalysisResult, Dict[str, Any]]):
         }
         
         # Store in local storage
+        if hasattr(result, "model_dump") and callable(result.model_dump):
+            result_dict = result.model_dump()
+        elif hasattr(result, "dict") and callable(result.dict):
+            result_dict = result.dict()
+        else:
+            result_dict = vars(result)
+            
         local_storage.save_task(
             workspace_context.workspace_id,
             story_id,
             {
                 "type": "analysis",
-                "result": result.dict() if hasattr(result, "dict") else vars(result),
+                "result": result_dict,
                 "metadata": metadata,
                 "raw_story": story_data
             }

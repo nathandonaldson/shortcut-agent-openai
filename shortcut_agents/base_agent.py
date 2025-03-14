@@ -825,10 +825,16 @@ class BaseAgent(Generic[T, U]):
         """
         # Convert result to dict if needed
         result_dict = result
-        if not isinstance(result, dict) and hasattr(result, "dict"):
-            result_dict = result.dict()
-        elif not isinstance(result, dict) and hasattr(result, "__dict__"):
-            result_dict = vars(result)
+        if not isinstance(result, dict):
+            # Support for Pydantic v2
+            if hasattr(result, "model_dump") and callable(result.model_dump):
+                result_dict = result.model_dump()
+            # Support for Pydantic v1
+            elif hasattr(result, "dict") and callable(result.dict):
+                result_dict = result.dict()
+            # Fallback for regular classes 
+            elif hasattr(result, "__dict__"):
+                result_dict = vars(result)
         
         # Add metadata
         metadata = {

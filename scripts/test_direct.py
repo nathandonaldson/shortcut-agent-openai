@@ -129,6 +129,24 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
         
         logger.info(f"Triage completed with result: {triage_result}")
         
+        # Check triage result for workflow information
+        triage_workflow = triage_result.get('result', {}).get('workflow')
+        logger.info(f"Triage workflow from result: {triage_workflow}")
+        
+        # Debug context workflow type
+        logger.info(f"Context workflow type before: {context.workflow_type}")
+        
+        # Manually set workflow type based on triage result if needed
+        if triage_workflow == 'analyse' and not context.workflow_type:
+            logger.info("Manually setting workflow type to ANALYSE based on triage result")
+            context.set_workflow_type(WorkflowType.ANALYSE)
+        elif triage_workflow == 'enhance' and not context.workflow_type:
+            logger.info("Manually setting workflow type to ENHANCE based on triage result")
+            context.set_workflow_type(WorkflowType.ENHANCE)
+        
+        # Check again
+        logger.info(f"Context workflow type after: {context.workflow_type}")
+        
         # Check if we need to continue with analysis or enhancement
         if context.workflow_type:
             logger.info(f"Continuing with {context.workflow_type.name} workflow")

@@ -213,8 +213,21 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
             next_steps=next_steps
         )
         
+        # Set workflow type in context
+        if result.workflow == "enhance":
+            logger.info("Setting workflow type to ENHANCE in context")
+            workspace_context.set_workflow_type(WorkflowType.ENHANCE)
+        elif result.workflow in ["analyse", "analyze"]:
+            logger.info("Setting workflow type to ANALYSE in context")
+            workspace_context.set_workflow_type(WorkflowType.ANALYSE)
+        
         # Process the result using the base agent's method
-        return self._process_result(result, workspace_context)
+        processed_result = self._process_result(result, workspace_context)
+        
+        # Double-check workflow type after processing
+        logger.info(f"Workflow type after processing: {workspace_context.workflow_type}")
+        
+        return processed_result
 
 
 # Convenience function to create a triage agent

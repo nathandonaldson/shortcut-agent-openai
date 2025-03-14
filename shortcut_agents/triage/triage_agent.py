@@ -155,9 +155,19 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
         # Set story ID in workspace context
         workspace_context.story_id = story_id
         
-        # Check for labels in actions
+        # First try to get labels from story data in context if available
         label_names = []
-        if "actions" in webhook_data and webhook_data["actions"]:
+        if hasattr(workspace_context, "story_data") and workspace_context.story_data:
+            # Get labels from actual story data
+            story_labels = workspace_context.story_data.get("labels", [])
+            for label in story_labels:
+                if isinstance(label, dict) and "name" in label:
+                    # Convert to lowercase for case-insensitive comparison
+                    label_names.append(label["name"].lower())
+                    logger.info(f"Found label in story data: {label['name']}")
+        
+        # If no labels found in story data, check webhook actions
+        if not label_names and "actions" in webhook_data and webhook_data["actions"]:
             for action in webhook_data["actions"]:
                 if action.get("action") == "update" and "changes" in action:
                     # Handle label changes
@@ -166,20 +176,26 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
                         for label in changes["labels"]["adds"]:
                             if isinstance(label, dict) and "name" in label:
                                 label_names.append(label["name"].lower())
+                                logger.info(f"Found label in webhook: {label['name']}")
         
-        # Determine workflow type
+        # Log all found labels
+        logger.info(f"All labels found (lowercase): {label_names}")
+        
+        # Determine workflow type - use case-insensitive comparison
         workflow = None
         processed = False
         reason = "No relevant labels found"
         
-        if "enhance" in label_names:
+        if any(label in ["enhance", "enhancement"] for label in label_names):
             workflow = "enhance"
             processed = True
             reason = None
-        elif "analyse" in label_names or "analyze" in label_names:
+            logger.info("Found 'enhance' label - selecting enhancement workflow")
+        elif any(label in ["analyse", "analyze", "analysis"] for label in label_names):
             workflow = "analyse"
             processed = True
             reason = None
+            logger.info("Found 'analyse'/'analyze' label - selecting analysis workflow")
         
         # Create result using Pydantic model
         next_steps = []

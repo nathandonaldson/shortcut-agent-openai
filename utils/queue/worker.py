@@ -280,16 +280,22 @@ class TaskWorker:
         from shortcut_agents.triage.triage_agent import create_triage_agent
         agent = create_triage_agent()
         
-        # Run simplified version directly to avoid SDK issues
-        result = await agent.run_simplified(webhook_data, context)
-        
-        # Schedule follow-up tasks based on workflow type
-        if context.workflow_type == WorkflowType.ENHANCE:
-            logger.info(f"Scheduling enhancement task for story {context.story_id}")
-            await self._schedule_enhancement_task(context)
-        elif context.workflow_type == WorkflowType.ANALYSE:
-            logger.info(f"Scheduling analysis task for story {context.story_id}")
-            await self._schedule_analysis_task(context)
+        try:
+            # Run simplified version directly to avoid SDK issues
+            result = await agent.run_simplified(webhook_data, context)
+            
+            # Instead of scheduling follow-up tasks, just log what should happen next
+            if context.workflow_type == WorkflowType.ENHANCE:
+                logger.info(f"Enhancement workflow determined for story {context.story_id}")
+                result["next_workflow"] = "enhancement"
+            elif context.workflow_type == WorkflowType.ANALYSE:
+                logger.info(f"Analysis workflow determined for story {context.story_id}")
+                result["next_workflow"] = "analysis"
+            else:
+                logger.info(f"No specific workflow determined for story {context.story_id}")
+        except Exception as e:
+            logger.error(f"Error in triage: {str(e)}")
+            raise
         
         return result
     

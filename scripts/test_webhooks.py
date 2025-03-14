@@ -125,6 +125,8 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         if len(path_parts) > 1 and path_parts[0] == "api" and path_parts[1] == "webhook":
             if len(path_parts) > 2:
                 workspace_id = path_parts[2]
+                # Normalize workspace ID to lowercase for consistency
+                workspace_id = workspace_id.lower()
         
         # Log headers
         logger.info(f"Request headers: {dict(self.headers)}")

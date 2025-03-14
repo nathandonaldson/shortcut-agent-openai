@@ -34,6 +34,9 @@ def get_api_key(workspace_id: str) -> str:
     Returns:
         The API key for the workspace
     """
+    # Normalize workspace ID to lowercase
+    workspace_id = workspace_id.lower()
+    
     # Look for workspace-specific API key in environment variables
     env_var_name = f"SHORTCUT_API_KEY_{workspace_id.upper()}"
     api_key = os.environ.get(env_var_name)

@@ -245,12 +245,29 @@ class TaskWorker:
         Returns:
             Workspace context
         """
-        # Get API key from environment
-        api_key = os.environ.get(f"SHORTCUT_API_KEY_{task.workspace_id.upper()}")
+        # Get API key from environment - try multiple case variations for reliability
+        api_key = None
+        
+        # Try exact case as provided in URL
+        if not api_key:
+            api_key = os.environ.get(f"SHORTCUT_API_KEY_{task.workspace_id}")
+            
+        # Try uppercase version
+        if not api_key:
+            api_key = os.environ.get(f"SHORTCUT_API_KEY_{task.workspace_id.upper()}")
+            
+        # Try lowercase version
+        if not api_key:
+            api_key = os.environ.get(f"SHORTCUT_API_KEY_{task.workspace_id.lower()}")
+            
+        # Fall back to the default API key
         if not api_key:
             api_key = os.environ.get("SHORTCUT_API_KEY")
         
-        if not api_key:
+        # Log which key we're using
+        if api_key:
+            logger.info(f"Using API key for workspace: {task.workspace_id}")
+        else:
             raise ValueError(f"No API key found for workspace {task.workspace_id}")
         
         # Create context

@@ -1,0 +1,84 @@
+Script started on Fri Mar 14 11:11:39 2025
+/Users/nathandonaldson/.zshrc:source:1: no such file or directory: /Users/nathandonaldson/.nvm/nvm.shexport
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air shortcut-agent-openai % [K[?2004hccd scripts[1m/[0m[0m [?2004l
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai/scripts[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air scripts % [K[?2004htte
+[Jtee            test           test-yaml      test-yaml5.34  textutil[A[0m[27m[24m[46Cte[Kt            [8Dlls[?2004l
+[Jsimulate_webhook.py	test_webhooks.py
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai/scripts[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air scripts % [K[?2004h../test_webhooks.py[1m [0m[0m [?2004l
+env: python: No such file or directory
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai/scripts[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air scripts % [K[?2004h./test_webhooks.py[?2004l
+2025-03-14 11:12:35,574 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-14 11:12:35,574 - webhook_test - INFO - Webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-14 11:12:35,574 - webhook_test - INFO - Press Ctrl+C to stop the server
+2025-03-14 11:13:31,190 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 11:13:31,190 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_111331.json
+127.0.0.1 - - [14/Mar/2025 11:13:31] "POST /api/webhook/Workspace1 HTTP/1.1" 200 -
+^X^C2025-03-14 11:27:25,436 - webhook_test - INFO - Server stopped by user
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai/scripts[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air scripts % [K[?2004h./test_webhooks.pys                 .  ../s
+[Jsimulate_webhook.py*      start_webhook_server.sh*[A[0m[27m[24m[46C./s[Ktart_webhook_server.sh[1m [0m[0m [?2004l
+[JStarting webhook server on port 3000...
+2025-03-14 11:27:46,998 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-14 11:27:46,998 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-14 11:27:46,998 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-14 11:27:46,998 - webhook_test - INFO - For Tailscale, use: http://nathans-macbook-air.lamb-cobra.ts.net:3000/api/webhook/[workspace]
+2025-03-14 11:27:46,998 - webhook_test - INFO - Press Ctrl+C to stop the server
+Starting ngrok tunnel to port 3000...
+Using custom domain: kangaroo-superb-cheaply.ngrok-free.app
+ERROR:  authentication failed: Usage of ngrok requires a verified account and authtoken.
+ERROR:  
+ERROR:  Sign up for an account: https://dashboard.ngrok.com/signup
+ERROR:  Install your authtoken: https://dashboard.ngrok.com/get-started/your-authtoken
+ERROR:  
+ERROR:  ERR_NGROK_4018
+ERROR:  https://ngrok.com/docs/errors/err_ngrok_4018
+ERROR:  
+Failed to get ngrok URL. Check logs/ngrok.log for details.
+You can also try checking the ngrok dashboard at http://localhost:4040
+^CStopping webhook server and ngrok...
+No matching processes belonging to you were found
+./start_webhook_server.sh: line 75: 53812 Terminated: 15          python3 "$(dirname "$0")/test_webhooks.py" --port $PORT
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai/scripts[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air scripts % [K[?2004h[[200~ngrok config add-authtoken 2uHTUIdmYcsMGf18ijYpFrHrJTd_7L4kijXgQpZVr9NK2w [KCCzg~[?2004l
+zsh: bad pattern: [200~ngrok
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai/scripts[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air scripts % [K[?2004h[7mngrok config add-authtoken 2uHTUIdmYcsMGf18ijYpFrHrJTd_7L4kijXgQpZVr9NK2wCzg[27m[76D[27mn[27mg[27mr[27mo[27mk[27m [27mc[27mo[27mn[27mf[27mi[27mg[27m [27ma[27md[27md[27m-[27ma[27mu[27mt[27mh[27mt[27mo[27mk[27me[27mn[27m [27m2[27mu[27mH[27mT[27mU[27mI[27md[27mm[27mY[27mc[27ms[27mM[27mG[27mf[27m1[27m8[27mi[27mj[27mY[27mp[27mF[27mr[27mH[27mr[27mJ[27mT[27md[27m_[27m7[27mL[27m4[27mk[27mi[27mj[27mX[27mg[27mQ[27mp[27mZ[27mV[27mr[27m9[27mN[27mK[27m2[27mw[27mC[27mz[27mg[?2004l
+Authtoken saved to configuration file: /Users/nathandonaldson/Library/Application Support/ngrok/ngrok.yml
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai/scripts[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air scripts % [K[?2004hngrok config add-authtoken 2uHTUIdmYcsMGf18ijYpFrHrJTd_7L4kijXgQpZVr9NK2wCzg[76D[200~ngrok config add-authtoken 2uHTUIdmYcsMGf18ijYpFrHrJTd_7L4kijXgQpZVr9NK2wCzg~[K[A[42C./start_webhook_server.sh[K[1B[K[A[71C[?2004l[1BStarting webhook server on port 3000...
+2025-03-14 11:29:22,244 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-14 11:29:22,244 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-14 11:29:22,244 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-14 11:29:22,244 - webhook_test - INFO - For Tailscale, use: http://nathans-macbook-air.lamb-cobra.ts.net:3000/api/webhook/[workspace]
+2025-03-14 11:29:22,244 - webhook_test - INFO - Press Ctrl+C to stop the server
+Starting ngrok tunnel to port 3000...
+Using custom domain: kangaroo-superb-cheaply.ngrok-free.app
+================== WEBHOOK SERVER READY ==================
+ngrok public URL: https://kangaroo-superb-cheaply.ngrok-free.app
+Webhook endpoint: https://kangaroo-superb-cheaply.ngrok-free.app/api/webhook/[workspace_id]
+Ping test endpoint: https://kangaroo-superb-cheaply.ngrok-free.app/ping
+ngrok dashboard: http://localhost:4040
+==========================================================
+Use this URL in your Shortcut webhook configuration:
+https://kangaroo-superb-cheaply.ngrok-free.app/api/webhook/[workspace_id]
+==========================================================
+Press Ctrl+C to stop the server and ngrok tunnel
+URLs also saved to logs/webhook_urls.txt
+2025-03-14 11:29:47,408 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-14 11:29:47,408 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '509', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-14 11:29:47,409 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 11:29:47,409 - webhook_test - INFO - Webhook data: {"id": "67d35c5a-1aae-4e18-a46d-e3307257c315", "changed_at": "2025-03-13T22:29:46.922Z", "version": "v1", "primary_id": 309, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 309, "entity_type": "story", "action": "update", "name": "Testing webhooks", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/309", "changes": {"label_ids": {"removes": [293]}}}], "references": [{"id": 293, "entity_type": "label", "name": "enhance", "app_url": "https://...
+2025-03-14 11:29:47,409 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_112947.json
+127.0.0.1 - - [14/Mar/2025 11:29:47] "POST /api/webhook/Workspace1 HTTP/1.1" 200 -
+2025-03-14 11:29:49,570 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-14 11:29:49,571 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '509', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-14 11:29:49,571 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 11:29:49,571 - webhook_test - INFO - Webhook data: {"id": "67d35c5d-ffe4-4146-94ae-83df32657d0d", "changed_at": "2025-03-13T22:29:49.308Z", "version": "v1", "primary_id": 309, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 309, "entity_type": "story", "action": "update", "name": "Testing webhooks", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/309", "changes": {"label_ids": {"removes": [310]}}}], "references": [{"id": 310, "entity_type": "label", "name": "Analyse", "app_url": "https://...
+2025-03-14 11:29:49,571 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_112949.json
+127.0.0.1 - - [14/Mar/2025 11:29:49] "POST /api/webhook/Workspace1 HTTP/1.1" 200 -
+2025-03-14 11:29:52,875 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-14 11:29:52,875 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '506', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-14 11:29:52,875 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 11:29:52,876 - webhook_test - INFO - Webhook data: {"id": "67d35c60-71e5-4cd6-9785-9267ed7b9674", "changed_at": "2025-03-13T22:29:52.428Z", "version": "v1", "primary_id": 309, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 309, "entity_type": "story", "action": "update", "name": "Testing webhooks", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/309", "changes": {"label_ids": {"adds": [310]}}}], "references": [{"id": 310, "entity_type": "label", "name": "Analyse", "app_url": "https://app...
+2025-03-14 11:29:52,876 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_112952.json
+127.0.0.1 - - [14/Mar/2025 11:29:52] "POST /api/webhook/Workspace1 HTTP/1.1" 200 -
+^X^CStopping webhook server and ngrok...
+No matching processes belonging to you were found
+./start_webhook_server.sh: line 75: 53874 Terminated: 15          python3 "$(dirname "$0")/test_webhooks.py" --port $PORT
+[1m[7m%[27m[1m[0m                                                                                                                            ]7;file://Nathans-MacBook-Air.local/Users/nathandonaldson/Documents/shortcut-agent-openai/scripts[0m[27m[24m[Jnathandonaldson@Nathans-MacBook-Air scripts % [K[?2004h

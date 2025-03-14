@@ -1,0 +1,48 @@
+{
+  "timestamp": "20250314_131709",
+  "workspace_id": "Workspace1",
+  "client_ip": "127.0.0.1",
+  "path": "/api/webhook/Workspace1",
+  "headers": {
+    "Host": "kangaroo-superb-cheaply.ngrok-free.app",
+    "User-Agent": "Apache-HttpClient/4.5.13 (Java/17.0.14)",
+    "Content-Length": "558",
+    "Accept-Encoding": "gzip, deflate",
+    "Content-Type": "application/json",
+    "X-Forwarded-For": "34.196.9.123",
+    "X-Forwarded-Host": "kangaroo-superb-cheaply.ngrok-free.app",
+    "X-Forwarded-Proto": "https"
+  },
+  "data": {
+    "id": "67d37584-5992-446a-9be2-49b1258b8377",
+    "changed_at": "2025-03-14T00:17:08.975Z",
+    "version": "v1",
+    "primary_id": 305,
+    "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5",
+    "actions": [
+      {
+        "id": 305,
+        "entity_type": "story",
+        "action": "update",
+        "name": "US:101 Create a configurable metronome with audio and visual cues",
+        "story_type": "feature",
+        "app_url": "https://app.shortcut.com/shortcutagent/story/305",
+        "changes": {
+          "label_ids": {
+            "removes": [
+              310
+            ]
+          }
+        }
+      }
+    ],
+    "references": [
+      {
+        "id": 310,
+        "entity_type": "label",
+        "name": "Analyse",
+        "app_url": "https://app.shortcut.com/shortcutagent/label/310"
+      }
+    ]
+  }
+}

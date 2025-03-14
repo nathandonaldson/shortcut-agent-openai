@@ -1,0 +1,14 @@
+{
+  "id": 12345,
+  "name": "Add user profile settings page",
+  "description": "We need to add a user profile settings page to the application.\n\nUsers should be able to update their profile information, change their password, and manage notification preferences.\n\n## Acceptance Criteria\n- User can access profile settings page from main navigation\n- User can update their name, email, and profile picture\n- User can change their password\n- User can configure notification preferences\n- Changes are saved when user clicks Save button",
+  "labels": [
+    {"id": 1000, "name": "enhancement"},
+    {"id": 1001, "name": "frontend"},
+    {"id": 1002, "name": "analyse"}
+  ],
+  "workflow_state_id": 500001,
+  "created_at": "2025-03-10T10:00:00Z",
+  "updated_at": "2025-03-14T15:30:00Z",
+  "requested_by_id": "user-123"
+}

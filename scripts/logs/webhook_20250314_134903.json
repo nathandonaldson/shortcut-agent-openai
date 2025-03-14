@@ -1,0 +1,39 @@
+{
+  "timestamp": "20250314_134903",
+  "workspace_id": "Workspace1",
+  "client_ip": "127.0.0.1",
+  "path": "/api/webhook/Workspace1",
+  "headers": {
+    "Host": "kangaroo-superb-cheaply.ngrok-free.app",
+    "User-Agent": "Apache-HttpClient/4.5.13 (Java/17.0.14)",
+    "Content-Length": "536",
+    "Accept-Encoding": "gzip, deflate",
+    "Content-Type": "application/json",
+    "X-Forwarded-For": "34.196.9.123",
+    "X-Forwarded-Host": "kangaroo-superb-cheaply.ngrok-free.app",
+    "X-Forwarded-Proto": "https"
+  },
+  "data": {
+    "id": "67d37cfe-83b3-4258-882d-54802a74be0a",
+    "changed_at": "2025-03-14T00:49:02.660Z",
+    "version": "v1",
+    "primary_id": 304,
+    "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5",
+    "actions": [
+      {
+        "id": 304,
+        "entity_type": "story",
+        "action": "update",
+        "name": "Create a configurable metronome with meaningful defaults 2",
+        "story_type": "feature",
+        "app_url": "https://app.shortcut.com/shortcutagent/story/304",
+        "changes": {
+          "name": {
+            "new": "Create a configurable metronome with meaningful defaults 2",
+            "old": "Create a configurable metronome with meaningful defaults"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -5,7 +5,7 @@ import time
 from typing import Dict, Any, Optional
 
 from context.workspace.workspace_context import WorkspaceContext, WorkflowType
-from agents.triage.triage_agent import process_webhook
+from shortcut_agents.triage.triage_agent_refactored import process_webhook
 from tools.shortcut.shortcut_tools import get_story_details
 
 # Set up logging

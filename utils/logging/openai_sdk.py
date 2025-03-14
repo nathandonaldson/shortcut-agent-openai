@@ -9,11 +9,11 @@ from typing import Dict, Any, Optional, List, Callable
 # Try to import OpenAI Agent SDK components
 try:
     from openai import OpenAI
-    from openai.types.agent import AgentCompletionParameters, AgentHooks
-    from openai.types.agent import RunContextWrapper, AgentResponseInfo, AgentResponse, AgentChatResponse
-    from openai.types.agent import FunctionCall, Tool, FunctionTool
-    from openai.types.agent.hooks import FunctionInputPair, FunctionOutputPair, RunStep
-    from openai.types.agent.tracing import Trace, Span, TraceProcessor, get_current_trace, add_trace_processor
+    from shortcut_agents import AgentCompletionParameters, AgentHooks
+    from shortcut_agents import RunContextWrapper, AgentResponseInfo, AgentResponse, AgentChatResponse
+    from shortcut_agents import FunctionCall, Tool, FunctionTool
+    from shortcut_agents.lifecycle import FunctionInputPair, FunctionOutputPair, RunStep
+    from shortcut_agents.tracing import Trace, Span, TraceProcessor, get_current_trace, add_trace_processor
     OPENAI_SDK_AVAILABLE = True
 except ImportError:
     # Create dummy classes for type hints

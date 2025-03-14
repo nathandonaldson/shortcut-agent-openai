@@ -19,6 +19,11 @@ done
 # Create logs directory if it doesn't exist
 mkdir -p logs
 
+# Set environment variables for testing
+export PYTHONPATH=$PWD
+export USE_MOCK_AGENTS=true
+echo "Setting USE_MOCK_AGENTS=true to use refactored agent mocks"
+
 # Start the webhook server in the background
 echo "Starting webhook server on port $PORT..."
 python3 "$(dirname "$0")/test_webhooks.py" --port $PORT &

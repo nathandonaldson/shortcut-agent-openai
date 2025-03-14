@@ -1,15 +1,22 @@
-t=2025-03-14T11:29:24+1300 lvl=info msg="no configuration paths supplied"
-t=2025-03-14T11:29:24+1300 lvl=info msg="using configuration at default config path" path="/Users/nathandonaldson/Library/Application Support/ngrok/ngrok.yml"
-t=2025-03-14T11:29:24+1300 lvl=info msg="open config file" path="/Users/nathandonaldson/Library/Application Support/ngrok/ngrok.yml" err=nil
-t=2025-03-14T11:29:24+1300 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
-t=2025-03-14T11:29:24+1300 lvl=info msg="client session established" obj=tunnels.session
-t=2025-03-14T11:29:24+1300 lvl=info msg="tunnel session started" obj=tunnels.session
-t=2025-03-14T11:29:24+1300 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:3000 url=https://kangaroo-superb-cheaply.ngrok-free.app
-t=2025-03-14T11:29:27+1300 lvl=info msg=start pg=/api/tunnels id=59faf1421a257986
-t=2025-03-14T11:29:27+1300 lvl=info msg=end pg=/api/tunnels id=59faf1421a257986 status=200 dur=445.083µs
-t=2025-03-14T11:29:47+1300 lvl=info msg="join connections" obj=join id=a928976ffc85 l=127.0.0.1:3000 r=34.196.9.123:4019
-t=2025-03-14T11:29:49+1300 lvl=info msg="join connections" obj=join id=22bfff97eca5 l=127.0.0.1:3000 r=34.196.9.123:57939
-t=2025-03-14T11:29:52+1300 lvl=info msg="join connections" obj=join id=bfcab67a62e7 l=127.0.0.1:3000 r=34.196.9.123:24812
-t=2025-03-14T11:29:59+1300 lvl=info msg="received stop request" obj=app stopReq="{err:<nil> restart:false}"
-t=2025-03-14T11:29:59+1300 lvl=info msg="session closing" obj=tunnels.session err=nil
-t=2025-03-14T11:29:59+1300 lvl=info msg="accept failed" obj=tunnels.session obj=csess id=1254c3a832bc err="reconnecting session closed"
+t=2025-03-14T13:12:58+1300 lvl=info msg="no configuration paths supplied"
+t=2025-03-14T13:12:58+1300 lvl=info msg="using configuration at default config path" path="/Users/nathandonaldson/Library/Application Support/ngrok/ngrok.yml"
+t=2025-03-14T13:12:58+1300 lvl=info msg="open config file" path="/Users/nathandonaldson/Library/Application Support/ngrok/ngrok.yml" err=nil
+t=2025-03-14T13:12:58+1300 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
+t=2025-03-14T13:12:58+1300 lvl=info msg="client session established" obj=tunnels.session
+t=2025-03-14T13:12:58+1300 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2025-03-14T13:12:58+1300 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:3000 url=https://kangaroo-superb-cheaply.ngrok-free.app
+t=2025-03-14T13:13:01+1300 lvl=info msg=start pg=/api/tunnels id=61565b216124021c
+t=2025-03-14T13:13:01+1300 lvl=info msg=end pg=/api/tunnels id=61565b216124021c status=200 dur=344.625µs
+t=2025-03-14T13:13:17+1300 lvl=info msg="join connections" obj=join id=678c2c088bb1 l=127.0.0.1:3000 r=34.196.9.123:59067
+t=2025-03-14T13:13:23+1300 lvl=info msg="join connections" obj=join id=2555b2fb49a8 l=127.0.0.1:3000 r=34.196.9.123:38109
+t=2025-03-14T13:13:27+1300 lvl=info msg="join connections" obj=join id=10f2263646e8 l=127.0.0.1:3000 r=34.196.9.123:62027
+t=2025-03-14T13:14:53+1300 lvl=info msg="join connections" obj=join id=80d9be2d0a48 l=127.0.0.1:3000 r=34.196.9.123:50412
+t=2025-03-14T13:14:56+1300 lvl=info msg="join connections" obj=join id=987547213e2a l=127.0.0.1:3000 r=34.196.9.123:47399
+t=2025-03-14T13:17:09+1300 lvl=info msg="join connections" obj=join id=9bfcdfc84cf4 l=127.0.0.1:3000 r=34.196.9.123:35835
+t=2025-03-14T13:17:11+1300 lvl=info msg="join connections" obj=join id=16f198b5d77e l=127.0.0.1:3000 r=34.196.9.123:12557
+t=2025-03-14T13:38:28+1300 lvl=info msg="join connections" obj=join id=312677b6b642 l=127.0.0.1:3000 r=34.196.9.123:1871
+t=2025-03-14T13:39:42+1300 lvl=info msg="join connections" obj=join id=fee12d42bd9b l=127.0.0.1:3000 r=34.196.9.123:20556
+t=2025-03-14T13:49:03+1300 lvl=info msg="join connections" obj=join id=5663a4814abf l=127.0.0.1:3000 r=34.196.9.123:43743
+t=2025-03-14T14:11:21+1300 lvl=info msg="received stop request" obj=app stopReq="{err:<nil> restart:false}"
+t=2025-03-14T14:11:21+1300 lvl=info msg="session closing" obj=tunnels.session err=nil
+t=2025-03-14T14:11:21+1300 lvl=info msg="accept failed" obj=tunnels.session obj=csess id=6c6ba3444a79 err="reconnecting session closed"

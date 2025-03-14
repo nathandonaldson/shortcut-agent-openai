@@ -1,0 +1,14 @@
+2025-03-14 12:45:46,942 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-14 12:45:46,943 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-14 12:45:46,943 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-14 12:45:46,943 - webhook_test - INFO - Press Ctrl+C to stop the server
+2025-03-14 12:45:59,628 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-14 12:45:59,628 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '524', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-14 12:45:59,628 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 12:45:59,629 - webhook_test - INFO - Webhook data: {"id": "67d36e36-9e00-4144-b876-c84a35189fc1", "changed_at": "2025-03-13T23:45:58.752Z", "version": "v1", "primary_id": 308, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 308, "entity_type": "story", "action": "update", "name": "US 292: Show a map of all users", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/308", "changes": {"label_ids": {"removes": [293]}}}], "references": [{"id": 293, "entity_type": "label", "name": "enhance", "app_...
+2025-03-14 12:45:59,629 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_124559.json
+2025-03-14 12:46:01,690 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-14 12:46:01,690 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '521', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-14 12:46:01,691 - webhook_test - INFO - Received webhook for workspace: Workspace1
+2025-03-14 12:46:01,691 - webhook_test - INFO - Webhook data: {"id": "67d36e39-76c5-40b7-8e31-2856127bdba1", "changed_at": "2025-03-13T23:46:01.008Z", "version": "v1", "primary_id": 308, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 308, "entity_type": "story", "action": "update", "name": "US 292: Show a map of all users", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/308", "changes": {"label_ids": {"adds": [293]}}}], "references": [{"id": 293, "entity_type": "label", "name": "enhance", "app_url...
+2025-03-14 12:46:01,691 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_124601.json

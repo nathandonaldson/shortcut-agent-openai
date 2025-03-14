@@ -12,3 +12,6 @@ env/
 .env/
 .idea/
 .vscode/
+agent_venv/
+*.log
+.DS_Store

@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 
 # Try to import OpenAI Agent SDK components
 try:
-    from openai.types.agent.tracing import TraceProcessor, Trace, Span
+    from shortcut_agents.tracing import TraceProcessor, Trace, Span
     OPENAI_SDK_AVAILABLE = True
 except ImportError:
     # Create dummy classes for type hints
@@ -37,7 +37,7 @@ os.makedirs(TRACE_DIR, exist_ok=True)
 
 class EnhancementTraceProcessor(TraceProcessor):
     """
-    Trace processor for Shortcut Enhancement agents.
+    Trace processor for Shortcut Enhancement shortcut_agents.
     
     Captures and processes OpenAI Agent SDK traces, extracting key metrics
     and logging them for monitoring and debugging.

@@ -1,0 +1,51 @@
+{
+  "overall_score": 7,
+  "title_analysis": {
+    "score": 8,
+    "strengths": [
+      "Clear and concise title",
+      "Includes action verb"
+    ],
+    "weaknesses": [
+      "Could be more specific"
+    ],
+    "recommendations": [
+      "Add more context to the title"
+    ]
+  },
+  "description_analysis": {
+    "score": 6,
+    "strengths": [
+      "Provides basic information"
+    ],
+    "weaknesses": [
+      "Lacks detailed requirements",
+      "Missing context"
+    ],
+    "recommendations": [
+      "Add more detailed requirements",
+      "Include background context"
+    ]
+  },
+  "acceptance_criteria_analysis": {
+    "score": 7,
+    "strengths": [
+      "Clear list of requirements",
+      "Covers key functionality"
+    ],
+    "weaknesses": [
+      "Could be more specific",
+      "Missing edge cases"
+    ],
+    "recommendations": [
+      "Add more specific acceptance criteria",
+      "Include edge cases"
+    ]
+  },
+  "priority_areas": [
+    "Improve description detail",
+    "Add acceptance criteria for edge cases",
+    "Clarify expected outcomes"
+  ],
+  "summary": "The story is of good quality but needs more detailed requirements and edge case handling."
+}

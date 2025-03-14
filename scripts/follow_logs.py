@@ -75,37 +75,60 @@ def follow_log_file(file_path: str,
             # Check if file size has changed
             current_size = os.path.getsize(file_path)
             if current_size > file_size:
+                print(f"File size changed: {file_size} -> {current_size} bytes")
+                
                 # Open file and read new lines
                 with open(file_path, 'r', encoding='utf-8') as f:
                     # Seek to last processed position
                     f.seek(file_size)
+                    print(f"Seeking to position {file_size}")
                     
                     # Read new lines
+                    line_count = 0
                     for line in f:
                         line = line.strip()
-                        if not line or line in processed_lines:
+                        line_count += 1
+                        
+                        if not line:
+                            print("Empty line, skipping")
                             continue
+                        
+                        if line in processed_lines:
+                            print("Already processed line, skipping")
+                            continue
+                        
+                        print(f"Processing line {line_count}: {line[:50]}..." if len(line) > 50 else f"Processing line {line_count}: {line}")
                         
                         # Parse line
                         entry = parse_log_line(line)
                         if entry:
+                            print(f"Successfully parsed JSON: level={entry.get('level')}, logger={entry.get('logger')}")
+                            
                             # Check log level
                             level = entry.get("level", "INFO").upper()
                             if level_rank.get(level, 0) < min_level_rank:
+                                print(f"Filtering out by level: {level} < {min_level}")
                                 continue
                             
                             # Check filters
                             if filter_request_id and entry.get("request_id") != filter_request_id:
+                                print(f"Filtering out by request_id: {entry.get('request_id')} != {filter_request_id}")
                                 continue
                             
                             if filter_workspace_id and entry.get("workspace_id") != filter_workspace_id:
+                                print(f"Filtering out by workspace_id: {entry.get('workspace_id')} != {filter_workspace_id}")
                                 continue
                             
                             if filter_story_id and entry.get("story_id") != filter_story_id:
+                                print(f"Filtering out by story_id: {entry.get('story_id')} != {filter_story_id}")
                                 continue
                             
                             # Print formatted entry
-                            print(format_log_entry(entry, show_timestamp))
+                            formatted = format_log_entry(entry, show_timestamp)
+                            print("Displaying formatted log entry:")
+                            print(formatted)
+                        else:
+                            print("Failed to parse line as JSON")
                         
                         # Mark as processed
                         processed_lines.add(line)
@@ -113,6 +136,8 @@ def follow_log_file(file_path: str,
                         # Limit processed lines cache size
                         if len(processed_lines) > 10000:
                             processed_lines = set(list(processed_lines)[-5000:])
+                
+                print(f"Processed {line_count} new lines")
                 
                 # Update file size
                 file_size = current_size

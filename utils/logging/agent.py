@@ -121,7 +121,7 @@ def log_agent_handoff(from_agent_type: str,
                      story_id: str,
                      handoff_reason: Optional[str] = None) -> None:
     """
-    Log a handoff between agents.
+    Log a handoff between shortcut_agents.
     
     Args:
         from_agent_type: Type of the source agent

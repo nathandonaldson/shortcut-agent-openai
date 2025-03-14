@@ -18,8 +18,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the worker module
 from utils.queue.worker import TaskWorker, TaskType
 
-# Import environment utility
-from utils.env import load_env_vars
+# Import environment utilities
+from utils.env import load_env_vars, setup_openai_configuration
 
 # Parse arguments
 parser = argparse.ArgumentParser(description="Start a background worker for task processing")
@@ -36,9 +36,15 @@ args = parser.parse_args()
 # Load environment variables
 load_env_vars()
 
+# Configure logging first
+logger = logging.getLogger("worker_script")
+
 # Set Redis URL from argument or environment
 if args.redis_url:
     os.environ["REDIS_URL"] = args.redis_url
+
+# Get logger for this script
+logger = logging.getLogger("worker_script")
 
 # Configure logging
 log_level = getattr(logging, args.log_level)
@@ -67,8 +73,12 @@ logging.basicConfig(
     force=True
 )
 
-# Get logger for this script
-logger = logging.getLogger("worker_script")
+# Now set up OpenAI configuration with trace processor
+try:
+    setup_openai_configuration()
+    logger.info("OpenAI configuration with trace processor complete")
+except Exception as e:
+    logger.warning(f"OpenAI configuration error: {str(e)}")
 
 # Set Redis URL in environment if provided
 if args.redis_url:

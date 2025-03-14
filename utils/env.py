@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 try:
     from openai import AsyncOpenAI
     from agents import set_default_openai_key, set_tracing_export_api_key
+    from agents.tracing import add_trace_processor
     AGENT_SDK_AVAILABLE = True
 except ImportError:
     AGENT_SDK_AVAILABLE = False
@@ -96,6 +97,16 @@ def setup_openai_configuration():
     
     # Explicitly set the same API key for tracing export
     set_tracing_export_api_key(api_key)
+    
+    # Set up trace processor
+    try:
+        from utils.logging.trace_processor import EnhancementTraceProcessor
+        # Add our custom trace processor to collect and process traces
+        trace_processor = EnhancementTraceProcessor()
+        add_trace_processor(trace_processor)
+        logger.info("Added EnhancementTraceProcessor for trace collection")
+    except Exception as e:
+        logger.warning(f"Failed to configure trace processor: {str(e)}")
     
     # Log configuration status
     logger.info("OpenAI API and tracing configuration complete")

@@ -12,7 +12,7 @@ import asyncio
 import argparse
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 # Add parent directory to import path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,10 +35,39 @@ logging.basicConfig(
 )
 logger = logging.getLogger("create_test_story")
 
+async def get_workflow_and_project(api_key: str, reference_story_id: str = "309") -> Tuple[Optional[int], Optional[int]]:
+    """
+    Get workflow and project IDs from a reference story.
+    
+    Args:
+        api_key: Shortcut API key
+        reference_story_id: ID of a reference story to get workflow and project from
+        
+    Returns:
+        Tuple of (workflow_id, project_id)
+    """
+    try:
+        logger.info(f"Getting reference story {reference_story_id} to extract workflow and project IDs")
+        story = await get_story_details(reference_story_id, api_key)
+        
+        workflow_id = story.get("workflow_id")
+        project_id = story.get("project_id")
+        
+        if workflow_id:
+            logger.info(f"Found workflow ID: {workflow_id}")
+        if project_id:
+            logger.info(f"Found project ID: {project_id}")
+            
+        return workflow_id, project_id
+    except Exception as e:
+        logger.warning(f"Error getting reference story: {str(e)}")
+        return None, None
+
 async def create_test_story_with_tag(
     workspace_id: str,
     api_key: str,
     tag: str = "analyse",
+    reference_story_id: str = "309",
     wait_seconds: int = 5
 ) -> Dict[str, Any]:
     """
@@ -48,15 +77,19 @@ async def create_test_story_with_tag(
         workspace_id: Shortcut workspace ID
         api_key: Shortcut API key
         tag: Tag to add (default: "analyse")
+        reference_story_id: ID of a reference story to get workflow and project from
         wait_seconds: Seconds to wait before adding the tag
         
     Returns:
         Dictionary with story details
     """
+    # Get workflow and project IDs from reference story
+    workflow_id, project_id = await get_workflow_and_project(api_key, reference_story_id)
+    
     # Generate a timestamp for uniqueness
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # Create story data - keep it simple without project or workflow
+    # Create story data
     story_data = {
         "name": f"Test Story for Analysis {timestamp}",
         "description": f"""
@@ -80,13 +113,20 @@ This story is created to test the Shortcut Enhancement System's analysis functio
         "story_type": "feature"
     }
     
+    # Add workflow ID if found
+    if workflow_id:
+        story_data["workflow_id"] = workflow_id
+    
+    # Add project ID if found
+    if project_id:
+        story_data["project_id"] = project_id
+    
+    # Check if we have either workflow or project
+    if not workflow_id and not project_id:
+        logger.warning("No workflow or project ID found. Story creation may fail.")
+    
     # Create the story
     logger.info(f"Creating test story in workspace {workspace_id}")
-    
-    # In development mode, we'll use mock data which doesn't require project/workflow
-    if os.environ.get("USE_REAL_SHORTCUT", "").lower() in ("true", "1", "yes"):
-        logger.warning("Using real Shortcut API - story creation may fail without project/workflow ID")
-    
     story = await create_story(api_key, story_data)
     
     # Get the story ID
@@ -125,6 +165,7 @@ async def main():
     parser = argparse.ArgumentParser(description="Create a test story in Shortcut and add a tag")
     parser.add_argument("--workspace", "-w", help="Shortcut workspace ID")
     parser.add_argument("--tag", "-t", default="analyse", help="Tag to add (default: analyse)")
+    parser.add_argument("--reference", "-r", default="309", help="Reference story ID to get workflow and project from")
     parser.add_argument("--wait", type=int, default=5, help="Seconds to wait before adding the tag")
     args = parser.parse_args()
     
@@ -161,6 +202,7 @@ async def main():
             workspace_id=workspace_id,
             api_key=api_key,
             tag=args.tag,
+            reference_story_id=args.reference,
             wait_seconds=args.wait
         )
         

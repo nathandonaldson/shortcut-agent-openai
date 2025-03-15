@@ -3,59 +3,112 @@
 ## Requirements
 
 - Python 3.9 or higher
-- OpenAI API key (set as environment variable `OPENAI_API_KEY`)
+- OpenAI API key with access to the Agent SDK (set as environment variable `OPENAI_API_KEY`)
+- Shortcut API key (for accessing Shortcut stories)
+- Redis (for task queue in production)
 
-## Steps to install the OpenAI Agents SDK
+## Steps to Install the OpenAI Agents SDK
 
-1. Install the OpenAI Agents SDK:
+1. Create and activate a virtual environment:
 
 ```bash
-pip install openai-agents
+python -m venv agent_venv
+source agent_venv/bin/activate  # On macOS/Linux
+# or
+.\agent_venv\Scripts\activate    # On Windows
 ```
 
-2. Verify the installation:
+2. Install the OpenAI Agents SDK:
+
+```bash
+pip install openai-agents==0.0.4
+```
+
+3. Install other project dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Verify the installation:
 
 ```bash
 python check_sdk.py
 ```
 
-If the OpenAI Agents SDK is not installed, you'll see a message that it's not available. The output should show both the OpenAI API package and the OpenAI Agents SDK as available if everything is installed correctly.
+If the OpenAI Agents SDK is properly installed, you'll see confirmation that both the OpenAI API package and the OpenAI Agents SDK are available.
+
+## Environment Setup
+
+### Essential Environment Variables
+
+Create a `.env` file in the project root with the following variables:
+
+```bash
+# API Keys
+OPENAI_API_KEY=sk-your-openai-api-key
+SHORTCUT_API_KEY_WORKSPACE1=your-shortcut-api-key
+
+# Environment Configuration
+ENVIRONMENT=development  # or production
+
+# Feature Flags
+USE_BACKGROUND_PROCESSING=true  # Set to false for easier debugging
+USE_MOCK_AGENTS=false           # Set to true if you don't have Agent SDK access
+USE_REAL_SHORTCUT=true          # Set to false for testing without Shortcut API
+```
 
 ## Troubleshooting
 
+### OpenAI Agent SDK Issues
+
 If you encounter errors related to missing modules or classes:
 
-- Make sure you have the latest version of the OpenAI Agents SDK:
+- Verify the SDK version matches our requirements:
   ```bash
-  pip install openai-agents --upgrade
+  pip list | grep openai-agents
   ```
 
-- If you're using a virtual environment, make sure it's activated:
+- Try reinstalling with the exact version:
   ```bash
-  source .venv/bin/activate  # On macOS/Linux
+  pip uninstall -y openai-agents
+  pip install openai-agents==0.0.4
   ```
 
-- Check that your Python environment matches the one used by your scripts:
+- Check for import compatibility:
   ```bash
-  which python
-  python --version
+  python -c "from agents import Agent, Runner; print('SDK imports working')"
   ```
 
-- Try installing with pip3 instead:
-  ```bash
-  pip3 install openai-agents
-  ```
+### Redis Setup
 
-## Environment Variables
+For local development with background processing:
 
-Make sure to set the following environment variables:
+1. Install Redis:
+   ```bash
+   # macOS
+   brew install redis
+   brew services start redis
+   
+   # Ubuntu
+   sudo apt update
+   sudo apt install redis-server
+   sudo systemctl start redis-server
+   ```
 
-```bash
-export OPENAI_API_KEY=sk-your-openai-api-key
-```
+2. Verify Redis connection:
+   ```bash
+   redis-cli ping
+   # Should return PONG
+   ```
 
-For development, you may also want to set:
+### Fallback Options
 
-```bash
-export USE_BACKGROUND_PROCESSING=false  # Process webhooks inline for easier debugging
-```
+If you're unable to access the OpenAI Agent SDK:
+
+1. Set `USE_MOCK_AGENTS=true` in your `.env` file
+2. The system will use our mock implementation instead of the real SDK
+
+## Next Steps
+
+After installation, proceed to [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) for instructions on running the system locally.

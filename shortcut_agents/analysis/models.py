@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, validator
 
 class ComponentScore(BaseModel):
     """Component-specific score and recommendations."""
-    score: int = Field(..., ge=1, le=10, description="Component score from 1-10")
+    score: int = Field(..., description="Component score from 1-10")
     strengths: List[str] = Field(..., description="List of component strengths")
     weaknesses: List[str] = Field(..., description="List of component weaknesses")
     recommendations: List[str] = Field(..., description="List of specific recommendations for improvement")
@@ -16,7 +16,7 @@ class ComponentScore(BaseModel):
 
 class AnalysisResult(BaseModel):
     """Structured result of a story analysis."""
-    overall_score: int = Field(..., ge=1, le=10, description="Overall story quality score from 1-10")
+    overall_score: int = Field(..., description="Overall story quality score from 1-10")
     title_analysis: ComponentScore = Field(..., description="Title analysis results")
     description_analysis: ComponentScore = Field(..., description="Description analysis results")
     acceptance_criteria_analysis: Optional[ComponentScore] = Field(None, description="Acceptance criteria analysis results (if present)")

@@ -684,96 +684,79 @@ def create_triage_agent() -> Agent:
 
 async def process_webhook(webhook_data: Dict[str, Any], workspace_context: WorkspaceContext) -> Dict[str, Any]:
     """
-    Process a webhook with proper tracing.
+    Process a webhook using the triage agent.
     
     Args:
-        webhook_data: Webhook data from Shortcut
+        webhook_data: Webhook data to process
         workspace_context: Workspace context
         
     Returns:
-        Triage result dictionary
+        Processing result
     """
-    logger.info(f"Processing webhook with triage agent")
-    
-    # Create trace ID from request ID if available
-    trace_id = f"trace_{workspace_context.request_id or uuid.uuid4().hex}"
-    
-    # Prepare run configuration for tracing
-    run_config = RunConfig(
-        workflow_name=f"Triage-{workspace_context.workspace_id}-{workspace_context.story_id}",
-        trace_id=trace_id,
-        model_settings=ModelSettings()  # Add default model settings to prevent NoneType error
-    )
+    logger.info("Processing webhook with triage agent")
     
     try:
-        # Check if OpenAI API key is available
-        if os.environ.get("OPENAI_API_KEY") is None:
-            logger.warning("OpenAI API key not found, using simplified triage process")
-            # Create a new TriageAgent instance
-            agent = TriageAgent()
-            return await agent.run_simplified(webhook_data, workspace_context)
+        # Create the triage agent
+        agent = create_triage_agent()
         
-        # Create the triage agent using the SDK
-        triage_agent = create_triage_agent()
+        # Get API key for the workspace
+        api_key = workspace_context.api_key
+        if api_key:
+            api_key_snippet = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "***masked***"
+            logger.info(f"Using API key starting with {api_key_snippet} for workspace {workspace_context.workspace_id}")
         
-        # Log which implementation we're using
-        logger.info("Running triage agent using OpenAI Agent SDK with handoffs")
+        # Create a trace for the triage agent
+        trace_id = f"Triage-{workspace_context.workspace_id}-{workspace_context.story_id}"
         
-        # Convert webhook data to JSON string if needed
-        input_data = webhook_data
-        if not isinstance(webhook_data, str):
-            input_data = json.dumps(webhook_data)
+        # Create a context for the agent
+        context = {
+            "workspace_id": workspace_context.workspace_id,
+            "story_id": workspace_context.story_id,
+            "api_key": api_key,
+            "request_id": workspace_context.request_id
+        }
         
-        # Log the API key being used (masked for security)
-        api_key_snippet = workspace_context.api_key[:4] + "..." + workspace_context.api_key[-4:] if len(workspace_context.api_key) > 8 else "***masked***"
-        logger.info(f"Using API key starting with {api_key_snippet} for workspace {workspace_context.workspace_id}")
+        # Determine if we should use handoffs or queue tasks
+        # For webhook processing, we'll queue tasks instead of using handoffs
+        # to prevent duplicate processing
+        use_handoffs = False
         
-        # Run the agent with tracing using the SDK Runner
-        with trace(
-            workflow_name=f"Triage-{workspace_context.workspace_id}-{workspace_context.story_id}",
-            trace_id=trace_id
-        ):
-            # Use the full SDK implementation with handoffs
-            result = await Runner.run(
-                starting_agent=triage_agent,
-                input=input_data,
-                context=workspace_context,
-                run_config=run_config
-            )
+        if use_handoffs:
+            # Run the agent with handoffs enabled
+            logger.info("Running triage agent using OpenAI Agent SDK with handoffs")
+            result = await Runner.run(agent, webhook_data, context=context, trace_id=trace_id)
             
-            # Extract the final output from the result
-            if hasattr(result, "final_output"):
-                # Get the final output from the SDK result
-                final_output = result.final_output
-                
-                # Convert to dictionary if needed
-                if hasattr(final_output, "model_dump") and callable(final_output.model_dump):
-                    result_dict = final_output.model_dump()
-                elif hasattr(final_output, "dict") and callable(final_output.dict):
-                    result_dict = final_output.dict()
-                else:
-                    result_dict = vars(final_output) if hasattr(final_output, "__dict__") else final_output
+            # Extract the final output
+            if hasattr(result, "final_output") and result.final_output:
+                triage_decision = result.final_output
+            else:
+                triage_decision = {"processed": False, "reason": "No output from triage agent"}
+        else:
+            # Run the agent without handoffs
+            logger.info("Running triage agent using OpenAI Agent SDK without handoffs")
+            result = await Runner.run(agent, webhook_data, context=context, trace_id=trace_id)
+            
+            # Extract the final output
+            if hasattr(result, "final_output") and result.final_output:
+                triage_decision = result.final_output
                 
                 # Log the triage decision
-                workflow = result_dict.get("workflow")
-                logger.info(f"Triage decision: {workflow or 'skip processing'}")
-                
-                return result_dict
+                logger.info(f"Triage decision: {triage_decision.get('workflow', 'skip processing')}")
             else:
-                # Fallback to simplified implementation if we can't extract the result
-                logger.warning("Could not extract final output from SDK result, falling back to simplified implementation")
-                agent = TriageAgent()
-                return await agent.run_simplified(webhook_data, workspace_context)
-    except Exception as e:
-        logger.error(f"Error in triage: {str(e)}")
-        # Print the full traceback for debugging
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+                triage_decision = {"processed": False, "reason": "No output from triage agent"}
         
-        # Create a basic result in case of error
         return {
-            "processed": False,
-            "reason": f"Error in triage: {str(e)}",
-            "story_id": workspace_context.story_id,
-            "workspace_id": workspace_context.workspace_id
+            "result": triage_decision,
+            "trace_id": trace_id
+        }
+    except Exception as e:
+        logger.error(f"Error processing webhook with triage agent: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Return a simple result for error cases
+        return {
+            "result": {
+                "processed": False,
+                "reason": f"Error: {str(e)}"
+            }
         }

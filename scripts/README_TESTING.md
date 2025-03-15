@@ -18,8 +18,8 @@ The following test scripts are available:
 
 ```bash
 # API Keys
-export OPENAI_API_KEY="your-openai-key"
-export SHORTCUT_API_KEY_WORKSPACE1="your-shortcut-key"
+export OPENAI_API_KEY="sk-your-openai-api-key"
+export SHORTCUT_API_KEY_WORKSPACE1="your-shortcut-api-key"
 
 # Real API Usage
 export USE_MOCK_AGENTS=false
@@ -29,6 +29,7 @@ export USE_REAL_SHORTCUT=true
 ### 2. Prepare a Test Story
 
 In Shortcut:
+
 1. Create a new story with a descriptive title and description
 2. Add either the "enhance" or "analyse" tag depending on which workflow you want to test
 3. Note the story ID (visible in the URL when viewing the story)
@@ -127,4 +128,3 @@ For testing without making real OpenAI API calls:
 ```bash
 export USE_MOCK_AGENTS=true
 ./scripts/test_enhance_workflow.sh
-```

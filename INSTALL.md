@@ -51,7 +51,7 @@ If you encounter errors related to missing modules or classes:
 Make sure to set the following environment variables:
 
 ```bash
-export OPENAI_API_KEY=your_api_key_here
+export OPENAI_API_KEY=sk-your-openai-api-key
 ```
 
 For development, you may also want to set:

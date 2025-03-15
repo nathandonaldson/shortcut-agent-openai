@@ -496,8 +496,172 @@ def create_triage_agent() -> Agent:
     update_agent = create_update_agent()
     
     # Create model settings based on model type
-    model_settings = None
-    # Only use temperature for models that support it
+    # Always initialize model_settings with a valid ModelSettings object
+    model_settings = ModelSettings()
+    
+    # Only set temperature for models that support it
+    # o3-mini and o3 models don't support temperature
+    if not any(x in model.lower() for x in ["o3-mini", "o3", "gpt-4o"]):
+        model_settings = ModelSettings(
+            temperature=0.2  # Low temperature for consistent, predictable responses
+        )
+    
+    # Create the agent with proper configuration
+    agent = Agent(
+        name="Triage Agent",
+        instructions=TRIAGE_SYSTEM_MESSAGE,
+        model=model,
+        model_settings=model_settings,
+        tools=tools,
+        output_type=TriageOutput,
+        handoffs=[analysis_agent, update_agent]  # Add handoffs to the agent
+    )
+    
+    return agent
+
+
+# Create a custom wrapper for the queue_analysis_task function to ensure API key is passed correctly
+async def wrapped_queue_analysis_task(workspace_id: str, story_id: str, api_key: str = None) -> Dict[str, Any]:
+    """
+    Wrapper for queue_analysis_task that ensures the API key is passed correctly.
+    
+    Args:
+        workspace_id: Shortcut workspace ID
+        story_id: Story ID to analyze
+        api_key: Shortcut API key
+        
+    Returns:
+        Task details
+    """
+    # Log the API key being used (masked for security)
+    if api_key:
+        api_key_snippet = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "***masked***"
+        logger.info(f"Using provided API key starting with {api_key_snippet} for workspace {workspace_id}")
+    else:
+        # If no API key is provided, try to get it from environment variables
+        env_var_name = f"SHORTCUT_API_KEY_{workspace_id.upper()}"
+        api_key = os.environ.get(env_var_name)
+        if not api_key:
+            api_key = os.environ.get("SHORTCUT_API_KEY")
+        
+        if api_key:
+            api_key_snippet = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "***masked***"
+            logger.info(f"Using environment API key starting with {api_key_snippet} for workspace {workspace_id}")
+        else:
+            logger.warning(f"No API key provided for workspace {workspace_id}")
+            raise ValueError(f"No API key provided for workspace {workspace_id}")
+    
+    # Call the original function with the correct API key
+    return await queue_analysis_task(workspace_id, story_id, api_key)
+
+
+# Create a custom wrapper for the queue_enhancement_task function to ensure API key is passed correctly
+async def wrapped_queue_enhancement_task(workspace_id: str, story_id: str, api_key: str = None) -> Dict[str, Any]:
+    """
+    Wrapper for queue_enhancement_task that ensures the API key is passed correctly.
+    
+    Args:
+        workspace_id: Shortcut workspace ID
+        story_id: Story ID to enhance
+        api_key: Shortcut API key
+        
+    Returns:
+        Task details
+    """
+    # Log the API key being used (masked for security)
+    if api_key:
+        api_key_snippet = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "***masked***"
+        logger.info(f"Using provided API key starting with {api_key_snippet} for workspace {workspace_id}")
+    else:
+        # If no API key is provided, try to get it from environment variables
+        env_var_name = f"SHORTCUT_API_KEY_{workspace_id.upper()}"
+        api_key = os.environ.get(env_var_name)
+        if not api_key:
+            api_key = os.environ.get("SHORTCUT_API_KEY")
+        
+        if api_key:
+            api_key_snippet = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "***masked***"
+            logger.info(f"Using environment API key starting with {api_key_snippet} for workspace {workspace_id}")
+        else:
+            logger.warning(f"No API key provided for workspace {workspace_id}")
+            raise ValueError(f"No API key provided for workspace {workspace_id}")
+    
+    # Call the original function with the correct API key
+    return await queue_enhancement_task(workspace_id, story_id, api_key)
+
+
+# Create a custom wrapper for the get_story_details function to ensure API key is passed correctly
+async def wrapped_get_story_details(story_id: str, api_key: str = None) -> Dict[str, Any]:
+    """
+    Wrapper for get_story_details that ensures the API key is passed correctly.
+    
+    Args:
+        story_id: The ID of the story to retrieve
+        api_key: Shortcut API key
+        
+    Returns:
+        Story details
+    """
+    # Log the API key being used (masked for security)
+    if api_key:
+        api_key_snippet = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "***masked***"
+        logger.info(f"Using provided API key starting with {api_key_snippet} for story {story_id}")
+    else:
+        # If no API key is provided, try to get it from environment variables
+        api_key = os.environ.get("SHORTCUT_API_KEY")
+        
+        if api_key:
+            api_key_snippet = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "***masked***"
+            logger.info(f"Using environment API key starting with {api_key_snippet} for story {story_id}")
+        else:
+            logger.warning(f"No API key provided for story {story_id}")
+            raise ValueError(f"No API key provided for story {story_id}")
+    
+    # Call the original function with the correct API key
+    return await get_story_details(story_id, api_key)
+
+
+def create_triage_agent() -> Agent:
+    """
+    Create a properly configured triage agent using the OpenAI Agent SDK.
+    
+    Returns:
+        Configured Triage Agent
+    """
+    logger.info("Creating triage agent using OpenAI Agent SDK")
+    
+    # Get the appropriate model
+    model = get_triage_model()
+    
+    # Create function tools with proper decoration using the wrapped functions
+    tools = [
+        function_tool(
+            func=wrapped_get_story_details,
+            description_override="Get details about a Shortcut story"
+        ),
+        function_tool(
+            func=wrapped_queue_enhancement_task,
+            description_override="Queue a story for enhancement processing"
+        ),
+        function_tool(
+            func=wrapped_queue_analysis_task,
+            description_override="Queue a story for analysis processing"
+        )
+    ]
+    
+    # Import the analysis and update agents for handoffs
+    from shortcut_agents.analysis.analysis_agent import create_analysis_agent
+    from shortcut_agents.update.update_agent import create_update_agent
+    
+    # Create the handoff agents
+    analysis_agent = create_analysis_agent()
+    update_agent = create_update_agent()
+    
+    # Create model settings based on model type
+    # Always initialize model_settings with a valid ModelSettings object
+    model_settings = ModelSettings()
+    
+    # Only set temperature for models that support it
     # o3-mini and o3 models don't support temperature
     if not any(x in model.lower() for x in ["o3-mini", "o3", "gpt-4o"]):
         model_settings = ModelSettings(
@@ -537,7 +701,8 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
     # Prepare run configuration for tracing
     run_config = RunConfig(
         workflow_name=f"Triage-{workspace_context.workspace_id}-{workspace_context.story_id}",
-        trace_id=trace_id
+        trace_id=trace_id,
+        model_settings=ModelSettings()  # Add default model settings to prevent NoneType error
     )
     
     try:
@@ -558,6 +723,10 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
         input_data = webhook_data
         if not isinstance(webhook_data, str):
             input_data = json.dumps(webhook_data)
+        
+        # Log the API key being used (masked for security)
+        api_key_snippet = workspace_context.api_key[:4] + "..." + workspace_context.api_key[-4:] if len(workspace_context.api_key) > 8 else "***masked***"
+        logger.info(f"Using API key starting with {api_key_snippet} for workspace {workspace_context.workspace_id}")
         
         # Run the agent with tracing using the SDK Runner
         with trace(

@@ -582,8 +582,8 @@ class BaseAgent(Generic[T, U]):
             output_guardrails.append(OutputGuardrail(guardrail))
         
         # Create model settings based on model type
-        model_settings = None
-        if "o3-mini" not in model.lower():
+        model_settings = ModelSettings()  # Always initialize with a valid ModelSettings object
+        if "o3-mini" not in model.lower() and "o3" not in model.lower() and "gpt-4o" not in model.lower():
             # Only use temperature for models that support it
             model_settings = ModelSettings(
                 temperature=0.2,  # Lower temperature for consistent outputs

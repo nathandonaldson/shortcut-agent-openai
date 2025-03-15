@@ -5,7 +5,7 @@
 if [ -z "$OPENAI_API_KEY" ]; then
   echo "Error: OPENAI_API_KEY is not set"
   echo "Please set your OpenAI API key before running this script:"
-  echo "export OPENAI_API_KEY=your_api_key"
+  echo "export OPENAI_API_KEY=sk-your-openai-api-key"
   exit 1
 fi
 
@@ -13,7 +13,7 @@ fi
 if [ -z "$SHORTCUT_API_KEY" ] && [ -z "$SHORTCUT_API_KEY_WORKSPACE1" ]; then
   echo "Error: No Shortcut API key found"
   echo "Please set either SHORTCUT_API_KEY or SHORTCUT_API_KEY_WORKSPACE1 before running this script:"
-  echo "export SHORTCUT_API_KEY=your_api_key"
+  echo "export SHORTCUT_API_KEY=d58a1ad0-4deb-44fd-a6c7-d29ccb9221fa"
   exit 1
 fi
 

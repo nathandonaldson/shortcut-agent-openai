@@ -461,42 +461,51 @@ def get_triage_model() -> str:
 
 def create_triage_agent() -> Agent:
     """
-    Create a properly configured triage agent using the OpenAI Agent SDK.
+    Create a triage agent using the OpenAI Agent SDK.
     
     Returns:
-        Configured Triage Agent
+        Agent instance
     """
-    logger.info("Creating triage agent using OpenAI Agent SDK")
+    # Import tools here to avoid circular imports
+    from tools.shortcut.shortcut_tools import get_story_details
     
-    # Get the appropriate model
-    model = get_triage_model()
-    
-    # Create function tools with proper decoration
+    # Create function tools for the agent
     tools = [
         function_tool(
-            func=get_story_details,
-            description_override="Get details about a Shortcut story"
+            func=wrapped_get_story_details,
+            description_override="Get details of a story from Shortcut"
         ),
         function_tool(
-            func=queue_enhancement_task,
-            description_override="Queue a story for enhancement processing"
+            func=wrapped_queue_analysis_task,
+            description_override="Queue a story for analysis"
         ),
         function_tool(
-            func=queue_analysis_task,
-            description_override="Queue a story for analysis processing"
+            func=wrapped_queue_enhancement_task,
+            description_override="Queue a story for enhancement"
         )
     ]
     
-    # Import the analysis and update agents for handoffs
+    # Create analysis agent for handoff
     from shortcut_agents.analysis.analysis_agent import create_analysis_agent
+    analysis_agent = Agent(
+        name="Analysis Agent",
+        instructions="You analyze Shortcut stories for quality and provide recommendations.",
+        handoff_description="Specialist agent for analyzing story quality"
+    )
+    
+    # Create update agent for handoff
     from shortcut_agents.update.update_agent import create_update_agent
+    update_agent = Agent(
+        name="Update Agent",
+        instructions="You enhance Shortcut stories based on analysis results.",
+        handoff_description="Specialist agent for enhancing story content"
+    )
     
-    # Create the handoff agents
-    analysis_agent = create_analysis_agent()
-    update_agent = create_update_agent()
+    # Get the model to use
+    model = get_triage_model()
+    logger.info(f"Using model {model} for triage agent")
     
-    # Create model settings based on model type
-    # Always initialize model_settings with a valid ModelSettings object
+    # Create model settings
     model_settings = ModelSettings()
     
     # Only set temperature for models that support it
@@ -507,6 +516,7 @@ def create_triage_agent() -> Agent:
         )
     
     # Create the agent with proper configuration
+    # IMPORTANT: We're disabling handoffs to prevent duplicate processing
     agent = Agent(
         name="Triage Agent",
         instructions=TRIAGE_SYSTEM_MESSAGE,
@@ -514,7 +524,8 @@ def create_triage_agent() -> Agent:
         model_settings=model_settings,
         tools=tools,
         output_type=TriageOutput,
-        handoffs=[analysis_agent, update_agent]  # Add handoffs to the agent
+        # Disable handoffs to prevent duplicate processing
+        handoffs=[]  # Empty list means no handoffs
     )
     
     return agent
@@ -619,67 +630,6 @@ async def wrapped_get_story_details(story_id: str, api_key: str = None) -> Dict[
     
     # Call the original function with the correct API key
     return await get_story_details(story_id, api_key)
-
-
-def create_triage_agent() -> Agent:
-    """
-    Create a properly configured triage agent using the OpenAI Agent SDK.
-    
-    Returns:
-        Configured Triage Agent
-    """
-    logger.info("Creating triage agent using OpenAI Agent SDK")
-    
-    # Get the appropriate model
-    model = get_triage_model()
-    
-    # Create function tools with proper decoration using the wrapped functions
-    tools = [
-        function_tool(
-            func=wrapped_get_story_details,
-            description_override="Get details about a Shortcut story"
-        ),
-        function_tool(
-            func=wrapped_queue_enhancement_task,
-            description_override="Queue a story for enhancement processing"
-        ),
-        function_tool(
-            func=wrapped_queue_analysis_task,
-            description_override="Queue a story for analysis processing"
-        )
-    ]
-    
-    # Import the analysis and update agents for handoffs
-    from shortcut_agents.analysis.analysis_agent import create_analysis_agent
-    from shortcut_agents.update.update_agent import create_update_agent
-    
-    # Create the handoff agents
-    analysis_agent = create_analysis_agent()
-    update_agent = create_update_agent()
-    
-    # Create model settings based on model type
-    # Always initialize model_settings with a valid ModelSettings object
-    model_settings = ModelSettings()
-    
-    # Only set temperature for models that support it
-    # o3-mini and o3 models don't support temperature
-    if not any(x in model.lower() for x in ["o3-mini", "o3", "gpt-4o"]):
-        model_settings = ModelSettings(
-            temperature=0.2  # Low temperature for consistent, predictable responses
-        )
-    
-    # Create the agent with proper configuration
-    agent = Agent(
-        name="Triage Agent",
-        instructions=TRIAGE_SYSTEM_MESSAGE,
-        model=model,
-        model_settings=model_settings,
-        tools=tools,
-        output_type=TriageOutput,
-        handoffs=[analysis_agent, update_agent]  # Add handoffs to the agent
-    )
-    
-    return agent
 
 
 async def process_webhook(webhook_data: Dict[str, Any], workspace_context: WorkspaceContext) -> Dict[str, Any]:

@@ -385,3 +385,40 @@ async def get_workspace_labels(api_key: str) -> List[Dict[str, Any]]:
                 raise ValueError(f"Failed to get labels: {response.status} - {error_text}")
             
             return await response.json()
+
+async def get_workflows(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Get all workflows in a workspace.
+    
+    Args:
+        api_key: Shortcut API key
+        
+    Returns:
+        List of workflows
+    """
+    client = get_shortcut_client(api_key)
+    
+    if isinstance(client, MockShortcutClient):
+        # In development mode, return mock data
+        return [
+            {
+                "id": 500001,
+                "name": "Default",
+                "states": [
+                    {"id": 500101, "name": "Unstarted"},
+                    {"id": 500102, "name": "Started"},
+                    {"id": 500103, "name": "Done"}
+                ]
+            }
+        ]
+    
+    # In production, get real workflows
+    async with aiohttp.ClientSession() as session:
+        url = f"{client.base_url}/workflows"
+        async with session.get(url, headers=client.headers) as response:
+            if response.status != 200:
+                error_text = await response.text()
+                logger.error(f"Error getting workflows: {error_text}")
+                raise ValueError(f"Failed to get workflows: {response.status} - {error_text}")
+            
+            return await response.json()

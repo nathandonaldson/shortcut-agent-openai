@@ -25,7 +25,8 @@ from tools.shortcut.shortcut_tools import (
     create_story, 
     update_story, 
     get_story_details,
-    get_workspace_labels
+    get_workspace_labels,
+    get_workflows
 )
 
 # Set up logging
@@ -40,6 +41,7 @@ async def create_test_story_with_tag(
     api_key: str,
     tag: str = "analyse",
     project_id: Optional[str] = None,
+    workflow_id: Optional[str] = None,
     wait_seconds: int = 5
 ) -> Dict[str, Any]:
     """
@@ -50,6 +52,7 @@ async def create_test_story_with_tag(
         api_key: Shortcut API key
         tag: Tag to add (default: "analyse")
         project_id: Project ID to create the story in (optional)
+        workflow_id: Workflow ID to create the story in (optional)
         wait_seconds: Seconds to wait before adding the tag
         
     Returns:
@@ -85,6 +88,20 @@ This story is created to test the Shortcut Enhancement System's analysis functio
     # Add project ID if provided
     if project_id:
         story_data["project_id"] = int(project_id)
+    
+    # Add workflow ID if provided
+    if workflow_id:
+        story_data["workflow_id"] = int(workflow_id)
+    else:
+        # Get workflows and use the first one
+        try:
+            workflows = await get_workflows(api_key)
+            if workflows:
+                workflow_id = str(workflows[0]["id"])
+                story_data["workflow_id"] = int(workflow_id)
+                logger.info(f"Using workflow ID {workflow_id} ({workflows[0]['name']})")
+        except Exception as e:
+            logger.warning(f"Error getting workflows: {str(e)}")
     
     # Create the story
     logger.info(f"Creating test story in workspace {workspace_id}")
@@ -133,6 +150,7 @@ async def main():
     parser.add_argument("--workspace", "-w", help="Shortcut workspace ID")
     parser.add_argument("--tag", "-t", default="analyse", help="Tag to add (default: analyse)")
     parser.add_argument("--project", "-p", help="Project ID to create the story in")
+    parser.add_argument("--workflow", "-f", help="Workflow ID to create the story in")
     parser.add_argument("--wait", type=int, default=5, help="Seconds to wait before adding the tag")
     args = parser.parse_args()
     
@@ -170,6 +188,7 @@ async def main():
             api_key=api_key,
             tag=args.tag,
             project_id=args.project,
+            workflow_id=args.workflow,
             wait_seconds=args.wait
         )
         

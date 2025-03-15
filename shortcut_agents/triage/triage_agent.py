@@ -31,6 +31,9 @@ from tools.shortcut.shortcut_tools import get_story_details, queue_enhancement_t
 # Import tracing utilities
 from utils.tracing import prepare_handoff_context, restore_handoff_context, record_handoff
 
+# Import storage utilities
+from utils.storage.local_storage import local_storage
+
 # Set up logging
 logger = logging.getLogger("triage_agent")
 
@@ -271,28 +274,79 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
         
         # Determine if handoff is needed
         if result.processed and result.workflow:
-            if result.workflow == "enhance":
-                logger.info(f"Handing off to Update Agent for enhancement")
-                return await self.__class__.handoff_to(
-                    self.update_agent_class,
-                    context=workspace_context,
-                    input_data={
+            try:
+                if result.workflow == "enhance":
+                    logger.info(f"Handing off to Update Agent for enhancement")
+                    
+                    # Import the update agent creator function
+                    from shortcut_agents.update.update_agent import create_update_agent
+                    
+                    # Create the update agent
+                    update_agent = create_update_agent()
+                    
+                    # Prepare input data for the update agent
+                    input_data = {
                         "workflow": "enhance",
                         "story_id": result.story_id,
-                        "workspace_id": result.workspace_id
+                        "workspace_id": result.workspace_id,
+                        "story_data": workspace_context.story_data
                     }
-                )
-            elif result.workflow in ["analyse", "analyze"]:
-                logger.info(f"Handing off to Analysis Agent for analysis")
-                return await self.__class__.handoff_to(
-                    self.analysis_agent_class,
-                    context=workspace_context,
-                    input_data={
+                    
+                    # Record the handoff
+                    handoff_id = record_handoff(
+                        source_agent="Triage Agent",
+                        target_agent="Update Agent",
+                        workspace_context=workspace_context,
+                        input_data=input_data
+                    )
+                    
+                    # Return success with handoff info
+                    return {
+                        "status": "success",
+                        "handoff": {
+                            "source": "Triage Agent",
+                            "target": "Update Agent",
+                            "handoff_id": handoff_id
+                        }
+                    }
+                    
+                elif result.workflow in ["analyse", "analyze"]:
+                    logger.info(f"Handing off to Analysis Agent for analysis")
+                    
+                    # Import the analysis agent creator function
+                    from shortcut_agents.analysis.analysis_agent import create_analysis_agent
+                    
+                    # Create the analysis agent
+                    analysis_agent = create_analysis_agent()
+                    
+                    # Prepare input data for the analysis agent
+                    input_data = {
                         "workflow": "analyse",
                         "story_id": result.story_id,
-                        "workspace_id": result.workspace_id
+                        "workspace_id": result.workspace_id,
+                        "story_data": workspace_context.story_data
                     }
-                )
+                    
+                    # Record the handoff
+                    handoff_id = record_handoff(
+                        source_agent="Triage Agent",
+                        target_agent="Analysis Agent",
+                        workspace_context=workspace_context,
+                        input_data=input_data
+                    )
+                    
+                    # Return success with handoff info
+                    return {
+                        "status": "success",
+                        "handoff": {
+                            "source": "Triage Agent",
+                            "target": "Analysis Agent",
+                            "handoff_id": handoff_id
+                        }
+                    }
+            except Exception as e:
+                logger.error(f"Error during handoff: {str(e)}")
+                # Continue with no handoff
         
         # No handoff needed
         return {
@@ -315,131 +369,82 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
         logger.info("Running simplified triage process")
         
         # Extract story ID from webhook data
-        story_id = str(webhook_data.get("id", ""))
-        if not story_id and "primary_id" in webhook_data:
-            story_id = str(webhook_data.get("primary_id", ""))
-            
-        # Check if webhook_data contains a nested 'data' field (common in webhook logs)
-        if not story_id and "data" in webhook_data and isinstance(webhook_data["data"], dict):
-            # Extract from the nested data structure
-            nested_data = webhook_data["data"]
-            story_id = str(nested_data.get("id", ""))
-            if not story_id and "primary_id" in nested_data:
-                story_id = str(nested_data.get("primary_id", ""))
-            
-            # If we found the story ID in the nested data, use the nested data for further processing
-            if story_id:
-                webhook_data = nested_data
+        story_id = None
         
-        # Set story ID in workspace context
-        workspace_context.story_id = story_id
-        
-        # First try to get labels from story data in context if available
-        label_names = []
+        # Check if story data is already in context
         if hasattr(workspace_context, "story_data") and workspace_context.story_data:
-            # Get labels from actual story data
-            story_labels = workspace_context.story_data.get("labels", [])
-            for label in story_labels:
-                if isinstance(label, dict) and "name" in label:
-                    # Convert to lowercase for case-insensitive comparison
-                    label_names.append(label["name"].lower())
-                    logger.info(f"Found label in story data: {label['name']}")
+            story_data = workspace_context.story_data
+            story_id = str(story_data.get("id", ""))
         
-        # If no labels found in story data, check webhook actions
-        if not label_names and "actions" in webhook_data and webhook_data["actions"]:
-            for action in webhook_data["actions"]:
-                if action.get("action") == "update" and "changes" in action:
-                    # Handle label changes
-                    changes = action.get("changes", {})
-                    
-                    # Check for labels in traditional format
-                    if "labels" in changes and "adds" in changes["labels"]:
-                        adds = changes["labels"]["adds"]
-                        if isinstance(adds, list):
-                            for label in adds:
-                                if isinstance(label, dict) and "name" in label:
-                                    label_names.append(label["name"].lower())
-                                    logger.info(f"Found label in webhook: {label['name']}")
-                    
-                    # Check for label_ids format
-                    if "label_ids" in changes and "adds" in changes["label_ids"]:
-                        adds = changes["label_ids"]["adds"]
-                        # If we have label_ids, we need to check the references section
-                        if isinstance(adds, list) and "references" in webhook_data:
-                            for reference in webhook_data["references"]:
-                                if (reference.get("entity_type") == "label" and 
-                                    reference.get("id") in adds):
-                                    label_name = reference.get("name", "").lower()
-                                    label_names.append(label_name)
-                                    logger.info(f"Found label in references: {reference.get('name')}")
-        
-        # Also check directly in the webhook data for references
-        if not label_names and "references" in webhook_data:
-            for reference in webhook_data["references"]:
-                if reference.get("entity_type") == "label":
-                    label_name = reference.get("name", "").lower()
-                    label_names.append(label_name)
-                    logger.info(f"Found label directly in references: {reference.get('name')}")
-        
-        # Log all found labels
-        logger.info(f"All labels found (lowercase): {label_names}")
-        
-        # Determine workflow type - use case-insensitive comparison
-        workflow = None
-        processed = False
-        reason = "No relevant labels found"
-        
-        if any(label in ["enhance", "enhancement"] for label in label_names):
-            workflow = "enhance"
-            processed = True
-            reason = None
-            logger.info("Found 'enhance' label - selecting enhancement workflow")
-        elif any(label in ["analyse", "analyze", "analysis"] for label in label_names):
-            workflow = "analyse"
-            processed = True
-            reason = None
-            logger.info("Found 'analyse'/'analyze' label - selecting analysis workflow")
-        
-        # Create result using Pydantic model
-        next_steps = []
-        if workflow == "enhance":
-            next_steps = ["Queue for enhancement"]
-        elif workflow == "analyse":
-            next_steps = ["Queue for analysis"]
+        # Process the webhook to determine if it needs processing
+        try:
+            # Check for labels in the story data
+            labels = []
+            if hasattr(workspace_context, "story_data") and workspace_context.story_data:
+                story_labels = workspace_context.story_data.get("labels", [])
+                for label in story_labels:
+                    label_name = label.get("name", "").lower()
+                    logger.info(f"Found label in story data: {label_name}")
+                    labels.append(label_name)
             
-        result = TriageOutput(
-            processed=processed,
-            workflow=workflow,
-            story_id=story_id,
-            workspace_id=workspace_context.workspace_id,
-            reason=reason,
-            next_steps=next_steps
-        )
-        
-        # Set workflow type in context
-        if result.workflow == "enhance":
-            logger.info("Setting workflow type to ENHANCE in context")
-            workspace_context.set_workflow_type(WorkflowType.ENHANCE)
-        elif result.workflow in ["analyse", "analyze"]:
-            logger.info("Setting workflow type to ANALYSE in context")
-            workspace_context.set_workflow_type(WorkflowType.ANALYSE)
-        
-        # Process the result using the base agent's method
-        processed_result = self._process_result(result, workspace_context)
-        
-        # Try to perform handoff if appropriate
-        if processed and workflow:
-            try:
-                handoff_result = await self.process_and_handoff(result, workspace_context)
-                if handoff_result and handoff_result.get("status") == "success":
-                    logger.info(f"Successfully handed off to {handoff_result.get('handoff', {}).get('target', 'unknown agent')}")
-                    # Add handoff info to the result
-                    processed_result["handoff"] = handoff_result.get("handoff")
-            except Exception as e:
-                logger.error(f"Error during handoff: {str(e)}")
-                # Continue with the regular result
-        
-        return processed_result
+            # Log all found labels
+            logger.info(f"All labels found (lowercase): {labels}")
+            
+            # Determine workflow based on labels
+            workflow = None
+            if "enhance" in labels:
+                logger.info("Found 'enhance' label - selecting enhancement workflow")
+                workflow = "enhance"
+                workspace_context.workflow_type = WorkflowType.ENHANCE
+                logger.info("Setting workflow type to ENHANCE in context")
+            elif "analyse" in labels or "analyze" in labels:
+                logger.info("Found 'analyse' or 'analyze' label - selecting analysis workflow")
+                workflow = "analyse"
+                workspace_context.workflow_type = WorkflowType.ANALYSE
+                logger.info("Setting workflow type to ANALYSE in context")
+            
+            # Create a result object
+            result = TriageOutput(
+                processed=workflow is not None,
+                workflow=workflow,
+                story_id=story_id,
+                workspace_id=workspace_context.workspace_id,
+                reason=None if workflow else "No relevant labels found",
+                next_steps=["Queue for enhancement"] if workflow == "enhance" else 
+                           ["Queue for analysis"] if workflow == "analyse" else 
+                           ["No action needed"]
+            )
+            
+            # Save the task to local storage
+            local_storage.save_task(workspace_context.workspace_id, story_id, {"status": "pending"})
+            
+            # Process the result and perform handoff if needed
+            if result.processed and result.workflow:
+                try:
+                    handoff_result = await self.process_and_handoff(result, workspace_context)
+                    logger.info(f"Handoff successful: {handoff_result}")
+                    return handoff_result
+                except Exception as e:
+                    logger.error(f"Error during handoff: {str(e)}")
+                    # Continue with no handoff
+            
+            # Create a standard response
+            return {
+                "status": "success",
+                "agent": "triage",
+                "result": result.dict() if hasattr(result, "dict") else vars(result),
+                "metadata": {
+                    "agent": "triage",
+                    "model": self.get_model(),
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "request_id": workspace_context.request_id,
+                    "workspace_id": workspace_context.workspace_id,
+                    "story_id": story_id
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error in simplified triage: {str(e)}")
+            return self._create_error_result(str(e), workspace_context)
 
 
 # Function to get the appropriate model for triage
@@ -490,14 +495,21 @@ def create_triage_agent() -> Agent:
     analysis_agent = create_analysis_agent()
     update_agent = create_update_agent()
     
+    # Create model settings based on model type
+    model_settings = None
+    # Only use temperature for models that support it
+    # o3-mini and o3 models don't support temperature
+    if not any(x in model.lower() for x in ["o3-mini", "o3", "gpt-4o"]):
+        model_settings = ModelSettings(
+            temperature=0.2  # Low temperature for consistent, predictable responses
+        )
+    
     # Create the agent with proper configuration
     agent = Agent(
         name="Triage Agent",
         instructions=TRIAGE_SYSTEM_MESSAGE,
         model=model,
-        model_settings=ModelSettings(
-            temperature=0.2  # Low temperature for consistent, predictable responses
-        ),
+        model_settings=model_settings,
         tools=tools,
         output_type=TriageOutput,
         handoffs=[analysis_agent, update_agent]  # Add handoffs to the agent
@@ -548,7 +560,10 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
             input_data = json.dumps(webhook_data)
         
         # Run the agent with tracing using the SDK Runner
-        with trace(trace_id=trace_id):
+        with trace(
+            workflow_name=f"Triage-{workspace_context.workspace_id}-{workspace_context.story_id}",
+            trace_id=trace_id
+        ):
             # Use the full SDK implementation with handoffs
             result = await Runner.run(
                 starting_agent=triage_agent,

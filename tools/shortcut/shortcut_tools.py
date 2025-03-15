@@ -422,3 +422,41 @@ async def get_workflows(api_key: str) -> List[Dict[str, Any]]:
                 raise ValueError(f"Failed to get workflows: {response.status} - {error_text}")
             
             return await response.json()
+
+async def get_projects(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Get all projects in a workspace.
+    
+    Args:
+        api_key: Shortcut API key
+        
+    Returns:
+        List of projects
+    """
+    client = get_shortcut_client(api_key)
+    
+    if isinstance(client, MockShortcutClient):
+        # In development mode, return mock data
+        return [
+            {
+                "id": 12345,
+                "name": "Backend",
+                "description": "Backend services"
+            },
+            {
+                "id": 12346,
+                "name": "Frontend",
+                "description": "Frontend applications"
+            }
+        ]
+    
+    # In production, get real projects
+    async with aiohttp.ClientSession() as session:
+        url = f"{client.base_url}/projects"
+        async with session.get(url, headers=client.headers) as response:
+            if response.status != 200:
+                error_text = await response.text()
+                logger.error(f"Error getting projects: {error_text}")
+                raise ValueError(f"Failed to get projects: {response.status} - {error_text}")
+            
+            return await response.json()

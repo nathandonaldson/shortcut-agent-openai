@@ -395,37 +395,129 @@ class TaskWorker:
             Processing result
         """
         # Extract webhook data from task
-        webhook_data = task.data.get("webhook_data", {})
+        webhook_data = task.payload.get("webhook_data", {})
         
         # Log the webhook data
         logger.info(f"Processing triage task for story {context.story_id}")
         
-        # Use the triage agent to process the webhook
-        from shortcut_agents.triage.triage_agent import create_triage_agent, process_webhook
-        agent = create_triage_agent()
-        
         try:
+            # First try to import the new triage agent
+            from shortcut_agents.triage.triage_agent import create_triage_agent, process_webhook
+            agent = create_triage_agent()
+            
+            # Check if webhook_data contains a nested 'data' field (common in webhook logs)
+            if "data" in webhook_data and isinstance(webhook_data["data"], dict):
+                # Extract story ID from the outer structure for context
+                if "story_id" in webhook_data and not context.story_id:
+                    context.story_id = webhook_data["story_id"]
+            
             # Use the process_webhook function instead of calling run directly on the agent
             result = await process_webhook(webhook_data, context)
             
-            # Schedule follow-up tasks based on the workflow type
-            if context.workflow_type == WorkflowType.ENHANCE:
-                logger.info(f"Enhancement workflow determined for story {context.story_id} - scheduling enhancement task")
-                result["next_workflow"] = "enhancement"
-                
-                # Schedule an enhancement task
-                await self._schedule_enhancement_task(context)
-            elif context.workflow_type == WorkflowType.ANALYSE:
-                logger.info(f"Analysis workflow determined for story {context.story_id} - scheduling analysis task")
-                result["next_workflow"] = "analysis"
-                
-                # Schedule an analysis task
-                await self._schedule_analysis_task(context)
-            else:
-                logger.info(f"No specific workflow determined for story {context.story_id}")
+            # Extract the actual result from the nested structure if needed
+            triage_result = result.get("result", result)
+            
+            # Log the extracted result for debugging
+            logger.info(f"Triage result: {triage_result}")
+            
+            # Check if the result indicates processing is needed
+            processed = triage_result.get("processed", False)
+            workflow = triage_result.get("workflow")
+            
+            if processed and workflow:
+                if workflow == "enhance":
+                    logger.info(f"Enhancement workflow determined for story {context.story_id} - scheduling enhancement task")
+                    context.set_workflow_type(WorkflowType.ENHANCE)
+                    await self._schedule_enhancement_task(context)
+                elif workflow in ["analyse", "analyze"]:
+                    logger.info(f"Analysis workflow determined for story {context.story_id} - scheduling analysis task")
+                    context.set_workflow_type(WorkflowType.ANALYSE)
+                    await self._schedule_analysis_task(context)
+            
+            return triage_result
+        
         except Exception as e:
             logger.error(f"Error in triage: {str(e)}")
-            raise
+            
+            # Try the fallback implementation if there was an error
+            try:
+                logger.info("Trying fallback triage implementation")
+                # Create a simplified triage result
+                from context.workspace.workspace_context import WorkflowType
+                
+                # Check for analyse/analyze label in webhook data
+                has_analyse_label = False
+                has_enhance_label = False
+                
+                # Extract the actual webhook data if it's nested
+                actual_webhook_data = webhook_data
+                if "data" in webhook_data and isinstance(webhook_data["data"], dict):
+                    actual_webhook_data = webhook_data["data"]
+                
+                # Check in references section
+                if "references" in actual_webhook_data:
+                    for ref in actual_webhook_data.get("references", []):
+                        if ref.get("entity_type") == "label" and ref.get("name", "").lower() in ["analyse", "analyze"]:
+                            has_analyse_label = True
+                            logger.info(f"Found analyse label in references: {ref.get('name')}")
+                        elif ref.get("entity_type") == "label" and ref.get("name", "").lower() == "enhance":
+                            has_enhance_label = True
+                            logger.info(f"Found enhance label in references: {ref.get('name')}")
+                
+                # Also check in actions if available
+                if "actions" in actual_webhook_data and isinstance(actual_webhook_data["actions"], list):
+                    for action in actual_webhook_data["actions"]:
+                        if action.get("action") == "update" and "changes" in action:
+                            changes = action.get("changes", {})
+                            
+                            # Check for label_ids format
+                            if "label_ids" in changes and "adds" in changes["label_ids"]:
+                                adds = changes["label_ids"]["adds"]
+                                if isinstance(adds, list) and "references" in actual_webhook_data:
+                                    for reference in actual_webhook_data["references"]:
+                                        if (reference.get("entity_type") == "label" and 
+                                            reference.get("id") in adds):
+                                            label_name = reference.get("name", "").lower()
+                                            if label_name in ["analyse", "analyze"]:
+                                                has_analyse_label = True
+                                                logger.info(f"Found analyse label in label_ids: {reference.get('name')}")
+                                            elif label_name == "enhance":
+                                                has_enhance_label = True
+                                                logger.info(f"Found enhance label in label_ids: {reference.get('name')}")
+                
+                if has_analyse_label:
+                    logger.info(f"Analysis workflow determined for story {context.story_id} - scheduling analysis task")
+                    context.set_workflow_type(WorkflowType.ANALYSE)
+                    await self._schedule_analysis_task(context)
+                    return {
+                        "processed": True,
+                        "workflow": "analyse",
+                        "next_workflow": "analysis",
+                        "story_id": context.story_id,
+                        "workspace_id": context.workspace_id
+                    }
+                elif has_enhance_label:
+                    logger.info(f"Enhancement workflow determined for story {context.story_id} - scheduling enhancement task")
+                    context.set_workflow_type(WorkflowType.ENHANCE)
+                    await self._schedule_enhancement_task(context)
+                    return {
+                        "processed": True,
+                        "workflow": "enhance",
+                        "next_workflow": "enhancement",
+                        "story_id": context.story_id,
+                        "workspace_id": context.workspace_id
+                    }
+                else:
+                    logger.info(f"No relevant labels found for story {context.story_id}")
+                    return {
+                        "processed": False,
+                        "reason": "No relevant labels found",
+                        "story_id": context.story_id,
+                        "workspace_id": context.workspace_id
+                    }
+            except Exception as fallback_error:
+                logger.error(f"Error in fallback triage: {str(fallback_error)}")
+                raise
         
         return result
     

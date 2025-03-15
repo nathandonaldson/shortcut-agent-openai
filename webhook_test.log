@@ -12,3 +12,81 @@
 2025-03-14 12:46:01,691 - webhook_test - INFO - Received webhook for workspace: Workspace1
 2025-03-14 12:46:01,691 - webhook_test - INFO - Webhook data: {"id": "67d36e39-76c5-40b7-8e31-2856127bdba1", "changed_at": "2025-03-13T23:46:01.008Z", "version": "v1", "primary_id": 308, "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 308, "entity_type": "story", "action": "update", "name": "US 292: Show a map of all users", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/308", "changes": {"label_ids": {"adds": [293]}}}], "references": [{"id": 293, "entity_type": "label", "name": "enhance", "app_url...
 2025-03-14 12:46:01,691 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250314_124601.json
+2025-03-15 09:47:26,036 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-15 09:47:26,036 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-15 09:47:26,036 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-15 09:47:26,036 - webhook_test - INFO - Press Ctrl+C to stop the server
+2025-03-15 09:47:43,031 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-15 09:47:43,031 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '552', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-15 09:47:43,031 - webhook_test - INFO - Received webhook for workspace: workspace1
+2025-03-15 09:47:43,032 - webhook_test - INFO - Webhook data: {"id": "67d495ee-36b4-4179-b223-0038e923799d", "changed_at": "2025-03-14T20:47:42.163Z", "version": "v1", "primary_id": 309, "actor_name": "Nathan Donaldson", "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 309, "entity_type": "story", "action": "update", "name": "[Enhanced] Testing webhooks", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/309", "changes": {"label_ids": {"removes": [293]}}}], "references": [{"id": 293, "entity_type": "la...
+2025-03-15 09:47:43,032 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250315_094743.json
+2025-03-15 09:47:43,049 - base_agent - INFO - OpenAI version: 1.66.3
+2025-03-15 09:47:43,049 - base_agent - INFO - OpenAI Agents SDK version found
+2025-03-15 09:47:43,049 - base_agent - INFO - Using real OpenAI Agent SDK classes
+2025-03-15 09:47:43,051 - webhook_test - ERROR - Error processing webhook: cannot import name 'TraceProcessor' from 'agents.tracing' (/Users/nathandonaldson/Library/Python/3.9/lib/python/site-packages/agents/tracing/__init__.py)
+Traceback (most recent call last):
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/./scripts/test_webhooks.py", line 183, in do_POST
+    from api.webhook.handler import handle_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/api/webhook/__init__.py", line 5, in <module>
+    from api.webhook.handler import handle_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/api/webhook/handler.py", line 15, in <module>
+    from shortcut_agents.triage.triage_agent import process_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/shortcut_agents/__init__.py", line 10, in <module>
+    from shortcut_agents.triage.triage_agent import create_triage_agent, process_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/shortcut_agents/triage/__init__.py", line 5, in <module>
+    from shortcut_agents.triage.triage_agent import create_triage_agent, process_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/shortcut_agents/triage/triage_agent.py", line 16, in <module>
+    from shortcut_agents.base_agent import BaseAgent, BaseAgentHooks, FunctionTool
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/shortcut_agents/base_agent.py", line 330, in <module>
+    from utils.tracing import prepare_handoff_context, restore_handoff_context
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/utils/tracing.py", line 16, in <module>
+    from utils.logging.logger import get_logger, trace_context, get_current_trace_context, set_trace_context
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/utils/logging/__init__.py", line 5, in <module>
+    from utils.logging.logger import (
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/utils/logging/logger.py", line 20, in <module>
+    from agents.tracing import add_trace_processor, Trace, Span, TraceProcessor
+ImportError: cannot import name 'TraceProcessor' from 'agents.tracing' (/Users/nathandonaldson/Library/Python/3.9/lib/python/site-packages/agents/tracing/__init__.py)
+2025-03-15 09:48:44,301 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-15 09:48:44,302 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-15 09:48:44,302 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-15 09:48:44,302 - webhook_test - INFO - Press Ctrl+C to stop the server
+2025-03-15 09:48:59,950 - webhook_test - INFO - Received POST request from 127.0.0.1 to /api/webhook/Workspace1
+2025-03-15 09:48:59,951 - webhook_test - INFO - Request headers: {'Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'User-Agent': 'Apache-HttpClient/4.5.13 (Java/17.0.14)', 'Content-Length': '549', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json', 'X-Forwarded-For': '34.196.9.123', 'X-Forwarded-Host': 'kangaroo-superb-cheaply.ngrok-free.app', 'X-Forwarded-Proto': 'https'}
+2025-03-15 09:48:59,951 - webhook_test - INFO - Received webhook for workspace: workspace1
+2025-03-15 09:48:59,951 - webhook_test - INFO - Webhook data: {"id": "67d4963a-dcb9-4146-b08a-1bf54833f6a0", "changed_at": "2025-03-14T20:48:58.858Z", "version": "v1", "primary_id": 309, "actor_name": "Nathan Donaldson", "member_id": "67d2657e-7a2c-4ee1-97f5-c1da36a8adf5", "actions": [{"id": 309, "entity_type": "story", "action": "update", "name": "[Enhanced] Testing webhooks", "story_type": "feature", "app_url": "https://app.shortcut.com/shortcutagent/story/309", "changes": {"label_ids": {"adds": [293]}}}], "references": [{"id": 293, "entity_type": "label...
+2025-03-15 09:48:59,951 - webhook_test - INFO - Saving webhook data to: logs/webhook_20250315_094859.json
+2025-03-15 09:48:59,962 - base_agent - INFO - OpenAI version: 1.66.3
+2025-03-15 09:48:59,962 - base_agent - INFO - OpenAI Agents SDK version found
+2025-03-15 09:48:59,962 - base_agent - INFO - Using real OpenAI Agent SDK classes
+2025-03-15 09:48:59,963 - webhook_test - ERROR - Error processing webhook: cannot import name 'TraceProcessor' from 'agents.tracing.processors' (/Users/nathandonaldson/Library/Python/3.9/lib/python/site-packages/agents/tracing/processors.py)
+Traceback (most recent call last):
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/./scripts/test_webhooks.py", line 183, in do_POST
+    from api.webhook.handler import handle_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/api/webhook/__init__.py", line 5, in <module>
+    from api.webhook.handler import handle_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/api/webhook/handler.py", line 15, in <module>
+    from shortcut_agents.triage.triage_agent import process_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/shortcut_agents/__init__.py", line 10, in <module>
+    from shortcut_agents.triage.triage_agent import create_triage_agent, process_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/shortcut_agents/triage/__init__.py", line 5, in <module>
+    from shortcut_agents.triage.triage_agent import create_triage_agent, process_webhook
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/shortcut_agents/triage/triage_agent.py", line 16, in <module>
+    from shortcut_agents.base_agent import BaseAgent, BaseAgentHooks, FunctionTool
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/shortcut_agents/base_agent.py", line 330, in <module>
+    from utils.tracing import prepare_handoff_context, restore_handoff_context
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/utils/tracing.py", line 16, in <module>
+    from utils.logging.logger import get_logger, trace_context, get_current_trace_context, set_trace_context
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/utils/logging/__init__.py", line 5, in <module>
+    from utils.logging.logger import (
+  File "/Users/nathandonaldson/Documents/shortcut-agent-openai/utils/logging/logger.py", line 21, in <module>
+    from agents.tracing.processors import TraceProcessor
+ImportError: cannot import name 'TraceProcessor' from 'agents.tracing.processors' (/Users/nathandonaldson/Library/Python/3.9/lib/python/site-packages/agents/tracing/processors.py)
+2025-03-15 09:54:05,994 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-15 09:54:05,994 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-15 09:54:05,994 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-15 09:54:05,994 - webhook_test - INFO - Press Ctrl+C to stop the server
+2025-03-15 09:55:40,435 - webhook_test - INFO - Starting webhook test server on port 3000
+2025-03-15 09:55:40,436 - webhook_test - INFO - Local webhook URL: http://localhost:3000/api/webhook/[workspace]
+2025-03-15 09:55:40,436 - webhook_test - INFO - Ping test URL: http://localhost:3000/ping
+2025-03-15 09:55:40,436 - webhook_test - INFO - Press Ctrl+C to stop the server

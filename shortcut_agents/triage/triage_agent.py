@@ -2,20 +2,32 @@
 Triage Agent for the Shortcut Enhancement System.
 
 This agent examines incoming webhooks and determines appropriate processing actions.
-This version is refactored to use the BaseAgent implementation and OpenAI Agent SDK.
+This implementation follows OpenAI Agent SDK best practices for handoffs, guardrails, and tracing.
 """
 
 import logging
 import datetime
 import time
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
-from agents import Agent, Runner, ModelSettings, function_tool, trace, RunConfig
+from pydantic import BaseModel, Field
 
-from shortcut_agents.base_agent import BaseAgent, BaseAgentHooks, FunctionTool
+# Import OpenAI Agent SDK components
+from agents import (
+    Agent, Runner, ModelSettings, function_tool, trace, RunConfig,
+    input_guardrail, output_guardrail, GuardrailFunctionOutput
+)
+
+# Import base agent components
+from shortcut_agents.base_agent import BaseAgent, BaseAgentHooks
 from context.workspace.workspace_context import WorkspaceContext, WorkflowType
+
+# Import Shortcut tools
 from tools.shortcut.shortcut_tools import get_story_details, queue_enhancement_task, queue_analysis_task
+
+# Import tracing utilities
+from utils.tracing import prepare_handoff_context, restore_handoff_context, record_handoff
 
 # Set up logging
 logger = logging.getLogger("triage_agent")
@@ -43,19 +55,16 @@ that have been added to the story. Check both the story data and the webhook dat
 Ignore all other webhook events that don't involve these labels being added.
 """
 
-# Import Pydantic for model validation
-from pydantic import BaseModel, Field
-
 # Define TriageOutput class as a Pydantic model for SDK compatibility
 class TriageOutput(BaseModel):
     """Output from the Triage Agent."""
     
-    processed: bool
-    workflow: Optional[str] = None
-    story_id: Optional[str] = None
-    workspace_id: Optional[str] = None
-    reason: Optional[str] = None
-    next_steps: List[str] = Field(default_factory=list)
+    processed: bool = Field(description="Whether the webhook was processed")
+    workflow: Optional[str] = Field(None, description="The workflow type (enhance or analyse)")
+    story_id: Optional[str] = Field(None, description="The ID of the story")
+    workspace_id: Optional[str] = Field(None, description="The ID of the workspace")
+    reason: Optional[str] = Field(None, description="Reason for not processing")
+    next_steps: List[str] = Field(default_factory=list, description="Next steps to take")
 
 
 class TriageAgentHooks(BaseAgentHooks[TriageOutput]):
@@ -69,7 +78,7 @@ class TriageAgentHooks(BaseAgentHooks[TriageOutput]):
             workspace_context: The workspace context
             result: The triage result
         """
-        # Convert result to dictionary - Pydantic model has model_dump() method
+        # Convert result to dictionary
         if hasattr(result, "model_dump") and callable(result.model_dump):
             result_dict = result.model_dump()
         elif hasattr(result, "dict") and callable(result.dict):
@@ -83,10 +92,118 @@ class TriageAgentHooks(BaseAgentHooks[TriageOutput]):
         # Set workflow type if applicable
         if result.workflow == "enhance":
             workspace_context.set_workflow_type(WorkflowType.ENHANCE)
+            logger.info(f"Setting workflow type to ENHANCE for story {result.story_id}")
         elif result.workflow in ["analyse", "analyze"]:
             workspace_context.set_workflow_type(WorkflowType.ANALYSE)
+            logger.info(f"Setting workflow type to ANALYSE for story {result.story_id}")
             
         logger.info(f"Stored triage results in workspace context: {result.workflow}")
+
+
+# Input validation guardrail
+@input_guardrail
+async def validate_webhook_input(ctx, agent, input_data: Dict[str, Any]) -> GuardrailFunctionOutput:
+    """
+    Validate the webhook input data.
+    
+    Args:
+        ctx: The context
+        agent: The agent
+        input_data: The input data to validate
+        
+    Returns:
+        Guardrail function output
+    """
+    # Check if input data is a dictionary
+    if not isinstance(input_data, dict):
+        return GuardrailFunctionOutput(
+            output_info={"valid": False},
+            tripwire_triggered=True,
+            reason="Input data is not a dictionary"
+        )
+    
+    # Check if we have a story ID somewhere in the data
+    story_id = None
+    
+    # Check direct fields
+    if "id" in input_data:
+        story_id = input_data["id"]
+    elif "primary_id" in input_data:
+        story_id = input_data["primary_id"]
+    
+    # Check nested data
+    elif "data" in input_data and isinstance(input_data["data"], dict):
+        nested_data = input_data["data"]
+        if "id" in nested_data:
+            story_id = nested_data["id"]
+        elif "primary_id" in nested_data:
+            story_id = nested_data["primary_id"]
+    
+    if not story_id:
+        return GuardrailFunctionOutput(
+            output_info={"valid": False},
+            tripwire_triggered=True,
+            reason="Could not find story ID in webhook data"
+        )
+    
+    # All checks passed
+    return GuardrailFunctionOutput(
+        output_info={"valid": True, "story_id": story_id},
+        tripwire_triggered=False
+    )
+
+
+# Output validation guardrail
+@output_guardrail
+async def validate_triage_output(ctx, agent, output_data: TriageOutput) -> GuardrailFunctionOutput:
+    """
+    Validate the triage output.
+    
+    Args:
+        ctx: The context
+        agent: The agent
+        output_data: The output data to validate
+        
+    Returns:
+        Guardrail function output
+    """
+    # Check if output is a TriageOutput instance
+    if not isinstance(output_data, TriageOutput):
+        return GuardrailFunctionOutput(
+            output_info={"valid": False},
+            tripwire_triggered=True,
+            reason="Output is not a TriageOutput instance"
+        )
+    
+    # If processed is True, workflow and story_id must be set
+    if output_data.processed:
+        if not output_data.workflow:
+            return GuardrailFunctionOutput(
+                output_info={"valid": False},
+                tripwire_triggered=True,
+                reason="Processed is True but workflow is not set"
+            )
+        
+        if not output_data.story_id:
+            return GuardrailFunctionOutput(
+                output_info={"valid": False},
+                tripwire_triggered=True,
+                reason="Processed is True but story_id is not set"
+            )
+        
+        # Validate workflow value
+        if output_data.workflow not in ["enhance", "analyse", "analyze"]:
+            return GuardrailFunctionOutput(
+                output_info={"valid": False},
+                tripwire_triggered=True,
+                reason=f"Invalid workflow value: {output_data.workflow}"
+            )
+    
+    # All checks passed
+    return GuardrailFunctionOutput(
+        output_info={"valid": True},
+        tripwire_triggered=False
+    )
 
 
 class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
@@ -97,25 +214,7 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
     def __init__(self):
         """Initialize the Triage Agent."""
         
-        # Input validation function
-        from shortcut_agents.guardrail import input_guardrail, GuardrailFunctionOutput
-        
-        @input_guardrail
-        async def validate_webhook_input(ctx, agent, input_data):
-            """Validate the webhook input data."""
-            # Implement validation logic
-            return GuardrailFunctionOutput(
-                output_info={"valid": True, "message": "Input validation successful"},
-                tripwire_triggered=False
-            )
-        
         # Create tools list using function_tool from the agents package
-        # The SDK version requires a different initialization pattern
-        # We need to use the function_tool decorator from agents
-        
-        from agents import function_tool
-        
-        # Create tools list using function_tool
         tools = [
             function_tool(
                 func=get_story_details,
@@ -139,7 +238,7 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
             output_class=TriageOutput,
             hooks_class=TriageAgentHooks,
             input_guardrails=[validate_webhook_input],
-            output_guardrails=[],
+            output_guardrails=[validate_triage_output],
             allowed_handoffs=["Analysis Agent", "Update Agent"],
             tools=tools,
             model_override=None
@@ -162,6 +261,18 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
         story_id = str(webhook_data.get("id", ""))
         if not story_id and "primary_id" in webhook_data:
             story_id = str(webhook_data.get("primary_id", ""))
+            
+        # Check if webhook_data contains a nested 'data' field (common in webhook logs)
+        if not story_id and "data" in webhook_data and isinstance(webhook_data["data"], dict):
+            # Extract from the nested data structure
+            nested_data = webhook_data["data"]
+            story_id = str(nested_data.get("id", ""))
+            if not story_id and "primary_id" in nested_data:
+                story_id = str(nested_data.get("primary_id", ""))
+            
+            # If we found the story ID in the nested data, use the nested data for further processing
+            if story_id:
+                webhook_data = nested_data
         
         # Set story ID in workspace context
         workspace_context.story_id = story_id
@@ -186,21 +297,32 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
                     
                     # Check for labels in traditional format
                     if "labels" in changes and "adds" in changes["labels"]:
-                        for label in changes["labels"]["adds"]:
-                            if isinstance(label, dict) and "name" in label:
-                                label_names.append(label["name"].lower())
-                                logger.info(f"Found label in webhook: {label['name']}")
+                        adds = changes["labels"]["adds"]
+                        if isinstance(adds, list):
+                            for label in adds:
+                                if isinstance(label, dict) and "name" in label:
+                                    label_names.append(label["name"].lower())
+                                    logger.info(f"Found label in webhook: {label['name']}")
                     
                     # Check for label_ids format
                     if "label_ids" in changes and "adds" in changes["label_ids"]:
+                        adds = changes["label_ids"]["adds"]
                         # If we have label_ids, we need to check the references section
-                        if "references" in webhook_data:
+                        if isinstance(adds, list) and "references" in webhook_data:
                             for reference in webhook_data["references"]:
                                 if (reference.get("entity_type") == "label" and 
-                                    reference.get("id") in changes["label_ids"]["adds"]):
+                                    reference.get("id") in adds):
                                     label_name = reference.get("name", "").lower()
                                     label_names.append(label_name)
                                     logger.info(f"Found label in references: {reference.get('name')}")
+        
+        # Also check directly in the webhook data for references
+        if not label_names and "references" in webhook_data:
+            for reference in webhook_data["references"]:
+                if reference.get("entity_type") == "label":
+                    label_name = reference.get("name", "").lower()
+                    label_names.append(label_name)
+                    logger.info(f"Found label directly in references: {reference.get('name')}")
         
         # Log all found labels
         logger.info(f"All labels found (lowercase): {label_names}")
@@ -248,9 +370,6 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
         # Process the result using the base agent's method
         processed_result = self._process_result(result, workspace_context)
         
-        # Double-check workflow type after processing
-        logger.info(f"Workflow type after processing: {workspace_context.workflow_type}")
-        
         return processed_result
 
 
@@ -263,24 +382,37 @@ def get_triage_model() -> str:
     if model:
         return model
     
-    # Fall back to o3-mini for development speed
+    # Fall back to gpt-3.5-turbo for development speed
     return "gpt-3.5-turbo"
 
-def create_triage_agent():
+
+def create_triage_agent() -> Agent:
     """
     Create a properly configured triage agent using the OpenAI Agent SDK.
     
     Returns:
         Configured Triage Agent
     """
-    # Use the SDK implementation
+    logger.info("Creating triage agent using OpenAI Agent SDK")
+    
+    # Get the appropriate model
     model = get_triage_model()
     
     # Create function tools with proper decoration
-    @function_tool
-    async def get_story_details_tool(story_id: str, api_key: str) -> Dict[str, Any]:
-        """Get details of a Shortcut story."""
-        return await get_story_details(story_id, api_key)
+    tools = [
+        function_tool(
+            func=get_story_details,
+            description_override="Get details about a Shortcut story"
+        ),
+        function_tool(
+            func=queue_enhancement_task,
+            description_override="Queue a story for enhancement processing"
+        ),
+        function_tool(
+            func=queue_analysis_task,
+            description_override="Queue a story for analysis processing"
+        )
+    ]
     
     # Create the agent with proper configuration
     agent = Agent(
@@ -290,8 +422,7 @@ def create_triage_agent():
         model_settings=ModelSettings(
             temperature=0.2  # Low temperature for consistent, predictable responses
         ),
-        tools=[get_story_details_tool],
-        output_type=TriageOutput
+        tools=tools
     )
     
     return agent
@@ -310,46 +441,43 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
     """
     logger.info(f"Processing webhook with triage agent")
     
-    # Create the agent
-    triage_agent = create_triage_agent()
-    
     # Create trace ID from request ID if available
     trace_id = f"trace_{workspace_context.request_id or uuid.uuid4().hex}"
     
     # Prepare run configuration for tracing
     run_config = RunConfig(
         workflow_name=f"Triage-{workspace_context.workspace_id}-{workspace_context.story_id}",
-        trace_id=trace_id,
-        metadata={
-            "workspace_id": workspace_context.workspace_id,
-            "story_id": workspace_context.story_id,
-            "request_id": workspace_context.request_id
-        }
+        trace_id=trace_id
     )
     
-    # Run the agent with SDK Runner
-    logger.info(f"Running triage agent using OpenAI Agent SDK")
-    result = await Runner.run(
-        starting_agent=triage_agent,
-        input=webhook_data,
-        context=workspace_context,
-        run_config=run_config
-    )
-    
-    # Extract the final output
-    if hasattr(result, "final_output"):
-        final_result = result.final_output
-        # Convert to dict if it's a Pydantic model
-        if hasattr(final_result, "model_dump"):
-            processed_result = {"result": final_result.model_dump()}
-        else:
-            processed_result = {"result": final_result}
+    try:
+        # Create a new TriageAgent instance
+        agent = TriageAgent()
         
-        # Log the triage decision
-        if isinstance(processed_result["result"], dict):
-            workflow = processed_result["result"].get("workflow")
+        # Log which implementation we're using
+        logger.info("Running triage agent using OpenAI Agent SDK")
+        
+        # Run the agent with tracing
+        with trace(trace_id=trace_id):
+            # Use the simplified implementation for now
+            # In the future, we can switch to the full SDK implementation
+            result = await agent.run_simplified(webhook_data, workspace_context)
+            
+            # Log the triage decision
+            workflow = result.get("workflow")
             logger.info(f"Triage decision: {workflow or 'skip processing'}")
+            
+            return result
+    except Exception as e:
+        logger.error(f"Error in triage: {str(e)}")
+        # Print the full traceback for debugging
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         
-        return processed_result
-    else:
-        return {"error": "No result from agent"}
+        # Create a basic result in case of error
+        return {
+            "processed": False,
+            "reason": f"Error in triage: {str(e)}",
+            "story_id": workspace_context.story_id,
+            "workspace_id": workspace_context.workspace_id
+        }

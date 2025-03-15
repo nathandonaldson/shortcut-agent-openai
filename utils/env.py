@@ -98,13 +98,26 @@ def setup_openai_configuration():
     # Explicitly set the same API key for tracing export
     set_tracing_export_api_key(api_key)
     
+    # Enable tracing explicitly
+    os.environ["OPENAI_TRACE_ENABLED"] = os.environ.get("OPENAI_TRACE_ENABLED", "true")
+    
+    # Set service name and version if not already set
+    if "OPENAI_TRACE_SERVICE_NAME" not in os.environ:
+        os.environ["OPENAI_TRACE_SERVICE_NAME"] = "shortcut-agent-app"
+    
+    if "OPENAI_TRACE_SERVICE_VERSION" not in os.environ:
+        os.environ["OPENAI_TRACE_SERVICE_VERSION"] = "1.0.0"
+    
+    # Log tracing configuration
+    logger.info(f"OpenAI Tracing enabled: {os.environ.get('OPENAI_TRACE_ENABLED')}")
+    logger.info(f"OpenAI Trace service name: {os.environ.get('OPENAI_TRACE_SERVICE_NAME')}")
+    logger.info(f"OpenAI Trace service version: {os.environ.get('OPENAI_TRACE_SERVICE_VERSION')}")
+    
     # Set up trace processor
     try:
-        from utils.logging.trace_processor import EnhancementTraceProcessor
-        # Add our custom trace processor to collect and process traces
-        trace_processor = EnhancementTraceProcessor()
-        add_trace_processor(trace_processor)
-        logger.info("Added EnhancementTraceProcessor for trace collection")
+        # Import trace processor here to avoid circular imports
+        from utils.logging.trace_processor import setup_trace_processor
+        setup_trace_processor()
     except Exception as e:
         logger.warning(f"Failed to configure trace processor: {str(e)}")
     

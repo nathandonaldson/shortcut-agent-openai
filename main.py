@@ -29,10 +29,6 @@ load_env_vars()
 # Setup OpenAI configuration and tracing
 setup_openai_configuration()
 
-# Import and setup trace processor
-from utils.logging.trace_processor import setup_trace_processor
-setup_trace_processor()
-
 # Import webhook handler
 from api.webhook.handler import handle_webhook
 from api.test_pipeline import run_test_pipeline

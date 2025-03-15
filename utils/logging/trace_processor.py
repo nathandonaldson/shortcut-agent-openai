@@ -7,7 +7,49 @@ import json
 import time
 from typing import Dict, Any, Optional
 
-from agents.tracing import add_trace_processor, TraceProcessor, Trace, Span
+# Try to import from agents.tracing, but provide fallbacks if not available
+try:
+    from agents.tracing import add_trace_processor
+    # Import classes directly
+    try:
+        from agents.tracing.processor_interface import ProcessorInterface as TraceProcessor
+        from agents.tracing.trace import Trace
+        from agents.tracing.span import Span
+    except ImportError:
+        # Fallback to base classes if available
+        from agents.tracing.base import TraceProcessor, Trace, Span
+    
+    TRACING_AVAILABLE = True
+except ImportError:
+    # Create dummy classes for when tracing is not available
+    print("Warning: OpenAI Agents SDK tracing classes not available, using dummy implementations")
+    TRACING_AVAILABLE = False
+    
+    class Trace:
+        """Dummy Trace class when agents.tracing is not available."""
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+    
+    class Span:
+        """Dummy Span class when agents.tracing is not available."""
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+    
+    class TraceProcessor:
+        """Dummy TraceProcessor class when agents.tracing is not available."""
+        async def process_trace(self, trace):
+            """Dummy implementation."""
+            pass
+        
+        async def process_span(self, span):
+            """Dummy implementation."""
+            pass
+    
+    def add_trace_processor(processor):
+        """Dummy implementation of add_trace_processor."""
+        print(f"Would add trace processor: {processor.__class__.__name__} (dummy implementation)")
 
 # Import our logger after defining the classes to avoid circular imports
 from utils.logging.logger import get_logger
@@ -231,6 +273,11 @@ def setup_trace_processor():
     Set up and register the trace processor with the OpenAI Agent SDK.
     This function should be called during application initialization.
     """
+    # Check if tracing is available
+    if not TRACING_AVAILABLE:
+        logger.warning("OpenAI Agent SDK tracing not available, skipping trace processor setup")
+        return
+        
     try:
         # Create trace processor instance
         processor = EnhancementTraceProcessor()
@@ -241,4 +288,4 @@ def setup_trace_processor():
         logger.info("Registered EnhancementTraceProcessor with OpenAI Agent SDK")
     except Exception as e:
         logger.error(f"Error setting up trace processor: {str(e)}")
-        raise  # Re-raise to make the error visible
+        # Don't re-raise to allow the application to continue without tracing

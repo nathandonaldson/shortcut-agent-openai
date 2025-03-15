@@ -574,11 +574,24 @@ class TaskWorker:
         # Update story labels
         if context.workflow_type == WorkflowType.ANALYSE:
             logger.info(f"Updating labels for story {context.story_id} (analysis workflow)")
+            
+            # Get current story data to extract existing labels
+            story_data = context.story_data
+            current_labels = story_data.get("labels", [])
+            current_label_names = [label["name"] for label in current_labels]
+            
+            # Add "analysed" label if not present
+            new_labels = current_labels.copy()
+            if "analysed" not in current_label_names:
+                new_labels.append({"name": "analysed"})
+            
+            # Remove "analyse" and "analyze" labels
+            final_labels = [label for label in new_labels 
+                           if label["name"] not in ["analyse", "analyze"]]
+            
+            # Prepare update data
             label_update = {
-                "labels": {
-                    "adds": [{"name": "analysed"}],
-                    "removes": [{"name": "analyse"}, {"name": "analyze"}]
-                }
+                "labels": final_labels
             }
             
             try:
@@ -670,11 +683,24 @@ class TaskWorker:
         
         # Step 5: Update story labels
         logger.info(f"Updating labels for story {context.story_id} (enhancement workflow)")
+        
+        # Get current story data to extract existing labels
+        story_data = context.story_data
+        current_labels = story_data.get("labels", [])
+        current_label_names = [label["name"] for label in current_labels]
+        
+        # Add "enhanced" label if not present
+        new_labels = current_labels.copy()
+        if "enhanced" not in current_label_names:
+            new_labels.append({"name": "enhanced"})
+        
+        # Remove "enhance" and "enhancement" labels
+        final_labels = [label for label in new_labels 
+                       if label["name"] not in ["enhance", "enhancement"]]
+        
+        # Prepare update data
         label_update = {
-            "labels": {
-                "adds": [{"name": "enhanced"}],
-                "removes": [{"name": "enhance"}, {"name": "enhancement"}]
-            }
+            "labels": final_labels
         }
         
         try:

@@ -79,14 +79,19 @@ class RealShortcutClient:
         
         url = f"{self.base_url}/stories/{story_id}"
         
+        # Log the exact data being sent
+        logger.info(f"Sending update to Shortcut API: {json.dumps(data)}")
+        
         async with aiohttp.ClientSession() as session:
             async with session.put(url, headers=self.headers, json=data) as response:
                 if response.status == 200:
-                    return await response.json()
+                    result = await response.json()
+                    logger.info(f"Successfully updated story {story_id}")
+                    return result
                 else:
                     error_text = await response.text()
                     logger.error(f"Error updating story {story_id}: {response.status} {error_text}")
-                    raise Exception(f"Failed to update story: {response.status}")
+                    raise Exception(f"Failed to update story: {response.status} - {error_text}")
     
     async def create_comment(self, story_id: str, text: str) -> Dict[str, Any]:
         """Create a comment on a story"""

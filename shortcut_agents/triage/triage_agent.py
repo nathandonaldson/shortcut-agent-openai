@@ -11,6 +11,7 @@ import time
 import uuid
 import json
 import os
+import traceback
 from typing import Dict, Any, List, Optional, Union
 
 from pydantic import BaseModel, Field
@@ -666,34 +667,24 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
             "request_id": workspace_context.request_id
         }
         
-        # Determine if we should use handoffs or queue tasks
-        # For webhook processing, we'll queue tasks instead of using handoffs
-        # to prevent duplicate processing
-        use_handoffs = False
-        
-        if use_handoffs:
-            # Run the agent with handoffs enabled
-            logger.info("Running triage agent using OpenAI Agent SDK with handoffs")
+        # Run the agent
+        logger.info("Running triage agent using OpenAI Agent SDK without handoffs")
+        try:
+            # Try with trace_id parameter
             result = await Runner.run(agent, webhook_data, context=context, trace_id=trace_id)
+        except TypeError:
+            # Fall back to running without trace_id if not supported
+            logger.info("Falling back to running without trace_id parameter")
+            result = await Runner.run(agent, webhook_data, context=context)
             
-            # Extract the final output
-            if hasattr(result, "final_output") and result.final_output:
-                triage_decision = result.final_output
-            else:
-                triage_decision = {"processed": False, "reason": "No output from triage agent"}
+        # Extract the final output
+        if hasattr(result, "final_output") and result.final_output:
+            triage_decision = result.final_output
+            
+            # Log the triage decision
+            logger.info(f"Triage decision: {triage_decision.get('workflow', 'skip processing')}")
         else:
-            # Run the agent without handoffs
-            logger.info("Running triage agent using OpenAI Agent SDK without handoffs")
-            result = await Runner.run(agent, webhook_data, context=context, trace_id=trace_id)
-            
-            # Extract the final output
-            if hasattr(result, "final_output") and result.final_output:
-                triage_decision = result.final_output
-                
-                # Log the triage decision
-                logger.info(f"Triage decision: {triage_decision.get('workflow', 'skip processing')}")
-            else:
-                triage_decision = {"processed": False, "reason": "No output from triage agent"}
+            triage_decision = {"processed": False, "reason": "No output from triage agent"}
         
         return {
             "result": triage_decision,

@@ -4,6 +4,7 @@ Tools for the Update Agent.
 
 import logging
 from typing import List, Dict, Any, Optional
+import json
 
 from tools.shortcut.shortcut_tools import update_story, add_comment, get_story_details
 
@@ -95,13 +96,28 @@ async def update_story_labels(
     logger.info(f"Updating tags for story {story_id}: adding {labels_to_add}, removing {labels_to_remove}")
     
     try:
-        # Prepare the label updates in Shortcut format
+        # First, get the current story to get existing labels
+        story_data = await get_story_details(story_id, api_key)
+        current_labels = story_data.get("labels", [])
+        current_label_names = [label["name"] for label in current_labels]
+        
+        # Add new labels that aren't already present
+        new_labels = current_labels.copy()
+        for label_to_add in labels_to_add:
+            if label_to_add not in current_label_names:
+                new_labels.append({"name": label_to_add})
+        
+        # Remove labels that should be removed
+        final_labels = [label for label in new_labels 
+                       if label["name"] not in labels_to_remove]
+        
+        # Prepare the update data
         update_data = {
-            "labels": {
-                "adds": [{"name": label} for label in labels_to_add],
-                "removes": [{"name": label} for label in labels_to_remove]
-            }
+            "labels": final_labels
         }
+        
+        # Log the update data for debugging
+        logger.info(f"Label update data: {json.dumps(update_data)}")
         
         # Update the story
         updated_story = await update_story(story_id, api_key, update_data)

@@ -382,11 +382,22 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
                 
                 # Update the story labels: remove "enhance", add "enhanced"
                 logger.info("Updating story labels")
+                
+                # Get current labels
+                current_labels = context.story_data.get("labels", [])
+                current_label_names = [label["name"] for label in current_labels]
+                
+                # Add "enhanced" label if not present
+                new_labels = current_labels.copy()
+                if "enhanced" not in current_label_names:
+                    new_labels.append({"name": "enhanced"})
+                
+                # Remove "enhance" label
+                final_labels = [label for label in new_labels if label["name"] != "enhance"]
+                
+                # Prepare update data
                 label_update = {
-                    "labels": {
-                        "adds": [{"name": "enhanced"}],
-                        "removes": [{"name": "enhance"}]
-                    }
+                    "labels": final_labels
                 }
                 
                 try:
@@ -417,11 +428,22 @@ async def run_direct_test(workspace_id: str, story_id: str, workflow_type: str):
             # For ANALYSE workflow, update the story labels: remove "analyse", add "analysed"
             elif context.workflow_type.name == "ANALYSE":
                 logger.info("Updating story labels for analysis workflow")
+                
+                # Get current labels
+                current_labels = context.story_data.get("labels", [])
+                current_label_names = [label["name"] for label in current_labels]
+                
+                # Add "analysed" label if not present
+                new_labels = current_labels.copy()
+                if "analysed" not in current_label_names:
+                    new_labels.append({"name": "analysed"})
+                
+                # Remove "analyse" label
+                final_labels = [label for label in new_labels if label["name"] != "analyse"]
+                
+                # Prepare update data
                 label_update = {
-                    "labels": {
-                        "adds": [{"name": "analysed"}],
-                        "removes": [{"name": "analyse"}]
-                    }
+                    "labels": final_labels
                 }
                 
                 try:

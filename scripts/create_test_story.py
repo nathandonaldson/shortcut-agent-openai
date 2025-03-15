@@ -35,7 +35,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("create_test_story")
 
-async def get_workflow_and_project(api_key: str, reference_story_id: str = "309") -> Tuple[Optional[int], Optional[int]]:
+async def get_workflow_and_project(api_key: str, reference_story_id: str = "309") -> Tuple[Optional[int], Optional[int], Optional[int]]:
     """
     Get workflow and project IDs from a reference story.
     
@@ -44,7 +44,7 @@ async def get_workflow_and_project(api_key: str, reference_story_id: str = "309"
         reference_story_id: ID of a reference story to get workflow and project from
         
     Returns:
-        Tuple of (workflow_id, project_id)
+        Tuple of (workflow_id, project_id, workflow_state_id)
     """
     try:
         logger.info(f"Getting reference story {reference_story_id} to extract workflow and project IDs")
@@ -52,16 +52,19 @@ async def get_workflow_and_project(api_key: str, reference_story_id: str = "309"
         
         workflow_id = story.get("workflow_id")
         project_id = story.get("project_id")
+        workflow_state_id = story.get("workflow_state_id")
         
         if workflow_id:
             logger.info(f"Found workflow ID: {workflow_id}")
         if project_id:
             logger.info(f"Found project ID: {project_id}")
+        if workflow_state_id:
+            logger.info(f"Found workflow state ID: {workflow_state_id}")
             
-        return workflow_id, project_id
+        return workflow_id, project_id, workflow_state_id
     except Exception as e:
         logger.warning(f"Error getting reference story: {str(e)}")
-        return None, None
+        return None, None, None
 
 async def create_test_story_with_tag(
     workspace_id: str,
@@ -84,7 +87,7 @@ async def create_test_story_with_tag(
         Dictionary with story details
     """
     # Get workflow and project IDs from reference story
-    workflow_id, project_id = await get_workflow_and_project(api_key, reference_story_id)
+    workflow_id, project_id, workflow_state_id = await get_workflow_and_project(api_key, reference_story_id)
     
     # Generate a timestamp for uniqueness
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -113,16 +116,16 @@ This story is created to test the Shortcut Enhancement System's analysis functio
         "story_type": "feature"
     }
     
-    # Try to use either project_id or workflow_id
+    # Try to use either project_id or workflow_state_id
     if project_id:
         story_data["project_id"] = project_id
         logger.info(f"Using project ID: {project_id}")
-    elif workflow_id:
-        # Try with different parameter names that the API might accept
-        story_data["workflow_state_id"] = workflow_id
-        logger.info(f"Using workflow_state_id: {workflow_id}")
+    elif workflow_state_id:
+        # Use workflow_state_id which is required for creating stories
+        story_data["workflow_state_id"] = workflow_state_id
+        logger.info(f"Using workflow_state_id: {workflow_state_id}")
     else:
-        logger.warning("No project ID or workflow ID found. Story creation may fail.")
+        logger.warning("No project ID or workflow state ID found. Story creation may fail.")
     
     # Create the story
     logger.info(f"Creating test story in workspace {workspace_id}")
@@ -143,9 +146,7 @@ This story is created to test the Shortcut Enhancement System's analysis functio
     # Add the tag to the story
     logger.info(f"Adding '{tag}' tag to story {story_id}")
     update_data = {
-        "labels": {
-            "adds": [{"name": tag}]
-        }
+        "labels": [{"name": tag}]
     }
     
     updated_story = await update_story(story_id, api_key, update_data)

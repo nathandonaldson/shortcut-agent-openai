@@ -25,8 +25,7 @@ from tools.shortcut.shortcut_tools import (
     create_story, 
     update_story, 
     get_story_details,
-    get_workspace_labels,
-    get_workflows
+    get_workspace_labels
 )
 
 # Set up logging
@@ -40,8 +39,6 @@ async def create_test_story_with_tag(
     workspace_id: str,
     api_key: str,
     tag: str = "analyse",
-    project_id: Optional[str] = None,
-    workflow_id: Optional[str] = None,
     wait_seconds: int = 5
 ) -> Dict[str, Any]:
     """
@@ -51,8 +48,6 @@ async def create_test_story_with_tag(
         workspace_id: Shortcut workspace ID
         api_key: Shortcut API key
         tag: Tag to add (default: "analyse")
-        project_id: Project ID to create the story in (optional)
-        workflow_id: Workflow ID to create the story in (optional)
         wait_seconds: Seconds to wait before adding the tag
         
     Returns:
@@ -61,7 +56,7 @@ async def create_test_story_with_tag(
     # Generate a timestamp for uniqueness
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # Create story data
+    # Create story data - keep it simple without project or workflow
     story_data = {
         "name": f"Test Story for Analysis {timestamp}",
         "description": f"""
@@ -85,26 +80,13 @@ This story is created to test the Shortcut Enhancement System's analysis functio
         "story_type": "feature"
     }
     
-    # Add project ID if provided
-    if project_id:
-        story_data["project_id"] = int(project_id)
-    
-    # Add workflow ID if provided
-    if workflow_id:
-        story_data["workflow_id"] = int(workflow_id)
-    else:
-        # Get workflows and use the first one
-        try:
-            workflows = await get_workflows(api_key)
-            if workflows:
-                workflow_id = str(workflows[0]["id"])
-                story_data["workflow_id"] = int(workflow_id)
-                logger.info(f"Using workflow ID {workflow_id} ({workflows[0]['name']})")
-        except Exception as e:
-            logger.warning(f"Error getting workflows: {str(e)}")
-    
     # Create the story
     logger.info(f"Creating test story in workspace {workspace_id}")
+    
+    # In development mode, we'll use mock data which doesn't require project/workflow
+    if os.environ.get("USE_REAL_SHORTCUT", "").lower() in ("true", "1", "yes"):
+        logger.warning("Using real Shortcut API - story creation may fail without project/workflow ID")
+    
     story = await create_story(api_key, story_data)
     
     # Get the story ID
@@ -118,12 +100,6 @@ This story is created to test the Shortcut Enhancement System's analysis functio
     if wait_seconds > 0:
         logger.info(f"Waiting {wait_seconds} seconds before adding the tag...")
         time.sleep(wait_seconds)
-    
-    # Get workspace labels to check if the tag exists
-    labels = await get_workspace_labels(api_key)
-    
-    # Check if the tag exists
-    tag_exists = any(label.get("name") == tag for label in labels)
     
     # Add the tag to the story
     logger.info(f"Adding '{tag}' tag to story {story_id}")
@@ -149,8 +125,6 @@ async def main():
     parser = argparse.ArgumentParser(description="Create a test story in Shortcut and add a tag")
     parser.add_argument("--workspace", "-w", help="Shortcut workspace ID")
     parser.add_argument("--tag", "-t", default="analyse", help="Tag to add (default: analyse)")
-    parser.add_argument("--project", "-p", help="Project ID to create the story in")
-    parser.add_argument("--workflow", "-f", help="Workflow ID to create the story in")
     parser.add_argument("--wait", type=int, default=5, help="Seconds to wait before adding the tag")
     args = parser.parse_args()
     
@@ -187,8 +161,6 @@ async def main():
             workspace_id=workspace_id,
             api_key=api_key,
             tag=args.tag,
-            project_id=args.project,
-            workflow_id=args.workflow,
             wait_seconds=args.wait
         )
         

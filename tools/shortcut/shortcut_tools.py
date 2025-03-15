@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Any, Optional, List, Callable
 import time
 import asyncio
+import aiohttp
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -46,8 +47,6 @@ class RealShortcutClient:
         """Get a story by ID"""
         logger.info(f"Getting story from Shortcut API: {story_id}")
         
-        import aiohttp
-        
         url = f"{self.base_url}/stories/{story_id}"
         
         # Debug logging - mask most of the API key but show a few chars to validate
@@ -78,8 +77,6 @@ class RealShortcutClient:
         logger.info(f"Updating story in Shortcut API: {story_id}")
         logger.debug(f"Update data: {json.dumps(data, indent=2)}")
         
-        import aiohttp
-        
         url = f"{self.base_url}/stories/{story_id}"
         
         async with aiohttp.ClientSession() as session:
@@ -94,8 +91,6 @@ class RealShortcutClient:
     async def create_comment(self, story_id: str, text: str) -> Dict[str, Any]:
         """Create a comment on a story"""
         logger.info(f"Creating comment on story in Shortcut API: {story_id}")
-        
-        import aiohttp
         
         url = f"{self.base_url}/stories/{story_id}/comments"
         
@@ -285,25 +280,23 @@ async def queue_enhancement_task(workspace_id: str, story_id: str, api_key: str)
 
 async def queue_analysis_task(workspace_id: str, story_id: str, api_key: str) -> Dict[str, Any]:
     """
-    Queue a story for analysis only.
+    Queue a story for analysis.
     
     Args:
-        workspace_id: The workspace ID
-        story_id: The story ID to analyze
-        api_key: The Shortcut API key
+        workspace_id: Shortcut workspace ID
+        story_id: Story ID to analyze
+        api_key: Shortcut API key
         
     Returns:
-        Task information
+        Task details
     """
-    # Import task queue
     from utils.queue.task_queue import task_queue, Task, TaskType, TaskPriority
+    from context.workspace.workspace_context import WorkspaceContext
     
-    logger.info(f"Queueing analysis task for story {story_id} in workspace {workspace_id}")
-    
-    # Get the story details
+    # Get story details
     story_data = await get_story_details(story_id, api_key)
     
-    # Create task for the queue
+    # Create a task for analysis
     task = Task(
         workspace_id=workspace_id,
         story_id=story_id,
@@ -315,13 +308,80 @@ async def queue_analysis_task(workspace_id: str, story_id: str, api_key: str) ->
         }
     )
     
-    # Add the task to the queue
-    task_id = await task_queue.add_task(task)
-    
-    logger.info(f"Analysis task queued with ID: {task_id}")
+    # Add to queue
+    await task_queue.add_task(task)
     
     return {
-        "task_id": task_id,
-        "task_status": "queued",
-        "task_type": "analysis"
+        "task_id": task.task_id,
+        "status": "queued",
+        "task_type": task.task_type,
+        "story_id": story_id
     }
+
+async def create_story(api_key: str, story_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Create a new story in Shortcut.
+    
+    Args:
+        api_key: Shortcut API key
+        story_data: Story data to create
+        
+    Returns:
+        Created story details
+    """
+    client = get_shortcut_client(api_key)
+    
+    if isinstance(client, MockShortcutClient):
+        # In development mode, return mock data
+        mock_story = MOCK_STORY.copy()
+        mock_story.update({
+            "id": int(time.time()),
+            "name": story_data.get("name", "Mock Story"),
+            "description": story_data.get("description", "Mock description"),
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        })
+        return mock_story
+    
+    # In production, create a real story
+    async with aiohttp.ClientSession() as session:
+        url = f"{client.base_url}/stories"
+        async with session.post(url, headers=client.headers, json=story_data) as response:
+            if response.status != 201:
+                error_text = await response.text()
+                logger.error(f"Error creating story: {error_text}")
+                raise ValueError(f"Failed to create story: {response.status} - {error_text}")
+            
+            return await response.json()
+
+async def get_workspace_labels(api_key: str) -> List[Dict[str, Any]]:
+    """
+    Get all labels in a workspace.
+    
+    Args:
+        api_key: Shortcut API key
+        
+    Returns:
+        List of labels
+    """
+    client = get_shortcut_client(api_key)
+    
+    if isinstance(client, MockShortcutClient):
+        # In development mode, return mock data
+        return [
+            {"id": 1000, "name": "enhancement"},
+            {"id": 1001, "name": "auth"},
+            {"id": 1002, "name": "enhance"},
+            {"id": 1003, "name": "analyse"},
+            {"id": 1004, "name": "bug"}
+        ]
+    
+    # In production, get real labels
+    async with aiohttp.ClientSession() as session:
+        url = f"{client.base_url}/labels"
+        async with session.get(url, headers=client.headers) as response:
+            if response.status != 200:
+                error_text = await response.text()
+                logger.error(f"Error getting labels: {error_text}")
+                raise ValueError(f"Failed to get labels: {response.status} - {error_text}")
+            
+            return await response.json()

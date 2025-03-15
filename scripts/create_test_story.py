@@ -113,12 +113,16 @@ This story is created to test the Shortcut Enhancement System's analysis functio
         "story_type": "feature"
     }
     
-    # Add project ID if found - only use project_id, not workflow_id
+    # Try to use either project_id or workflow_id
     if project_id:
         story_data["project_id"] = project_id
         logger.info(f"Using project ID: {project_id}")
+    elif workflow_id:
+        # Try with different parameter names that the API might accept
+        story_data["workflow_state_id"] = workflow_id
+        logger.info(f"Using workflow_state_id: {workflow_id}")
     else:
-        logger.warning("No project ID found. Story creation may fail.")
+        logger.warning("No project ID or workflow ID found. Story creation may fail.")
     
     # Create the story
     logger.info(f"Creating test story in workspace {workspace_id}")

@@ -75,9 +75,17 @@ class WorkspaceContext:
         """Set the analysis results for the current story"""
         self.analysis_results = results
     
+    def get_analysis_results(self) -> Optional[Dict[str, Any]]:
+        """Get the analysis results for the current story"""
+        return self.analysis_results
+    
     def set_enhancement_results(self, results: Dict[str, Any]) -> None:
         """Set the enhancement results for the current story"""
         self.enhancement_results = results
+    
+    def get_enhancement_results(self) -> Optional[Dict[str, Any]]:
+        """Get the enhancement results for the current story"""
+        return self.enhancement_results
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the context to a dictionary for storage"""

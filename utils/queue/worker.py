@@ -541,6 +541,17 @@ class TaskWorker:
         """
         logger.info(f"Processing analysis task for story {context.story_id}")
         
+        # Check if this story already has analysis results
+        existing_analysis = context.get_analysis_results()
+        if existing_analysis:
+            logger.warning(f"Story {context.story_id} already has analysis results, skipping duplicate analysis")
+            return {
+                "status": "skipped",
+                "reason": "Duplicate analysis detected",
+                "story_id": context.story_id,
+                "workspace_id": context.workspace_id
+            }
+        
         # Get story data if not in context
         if not context.story_data:
             logger.info(f"Fetching story data for {context.story_id}")
@@ -578,8 +589,11 @@ class TaskWorker:
         
         # Return combined results
         return {
-            "analysis": analysis_result.get("result", {}),
-            "comment_id": comment_result.get("id")
+            "status": "completed",
+            "story_id": context.story_id,
+            "workspace_id": context.workspace_id,
+            "result": analysis_result,
+            "comment": comment_result
         }
     
     async def _process_enhancement_task(self, task: Task, context: WorkspaceContext) -> Dict[str, Any]:

@@ -424,6 +424,13 @@ class TaskWorker:
             processed = triage_result.get("processed", False)
             workflow = triage_result.get("workflow")
             
+            # Check if a handoff was already processed
+            handoff = triage_result.get("handoff")
+            if handoff:
+                logger.info(f"Handoff already processed by triage agent to {handoff.get('target', 'unknown agent')}")
+                # Skip creating additional tasks since the handoff has already been handled
+                return triage_result
+            
             if processed and workflow:
                 if workflow == "enhance":
                     logger.info(f"Enhancement workflow determined for story {context.story_id} - scheduling enhancement task")

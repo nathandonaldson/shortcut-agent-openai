@@ -274,14 +274,26 @@ async def handle_webhook(workspace_id: str, webhook_data: Dict[str, Any], reques
                     logger.info(f"Processing webhook with triage agent (inline)")
                     result = await process_webhook(webhook_data, context)
                     
-                    # Log triage decision
-                    log_triage_decision(
-                        request_id=request_id,
-                        workspace_id=workspace_id,
-                        story_id=story_id,
-                        decision=result.get("workflow", "unknown"),
-                        triage_result=result
-                    )
+                    # Check if the result contains a handoff
+                    if "handoff" in result and result["handoff"]:
+                        logger.info(f"Triage agent handed off to another agent: {result['handoff'].get('target', 'unknown')}")
+                        # The handoff has already been processed by the SDK, so we just need to log it
+                        log_triage_decision(
+                            request_id=request_id,
+                            workspace_id=workspace_id,
+                            story_id=story_id,
+                            decision=result.get("workflow", "handoff"),
+                            triage_result=result
+                        )
+                    else:
+                        # Log triage decision
+                        log_triage_decision(
+                            request_id=request_id,
+                            workspace_id=workspace_id,
+                            story_id=story_id,
+                            decision=result.get("workflow", "unknown"),
+                            triage_result=result
+                        )
             
                 # Calculate processing time
                 duration_ms = int((time.time() - start_time) * 1000)

@@ -9,6 +9,8 @@ import logging
 import datetime
 import time
 import uuid
+import json
+import os
 from typing import Dict, Any, List, Optional, Union
 
 from pydantic import BaseModel, Field
@@ -230,6 +232,10 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
             )
         ]
         
+        # Import the analysis and update agents for handoffs
+        from shortcut_agents.analysis.analysis_agent import AnalysisAgent
+        from shortcut_agents.update.update_agent import UpdateAgent
+        
         # Initialize the base agent
         super().__init__(
             agent_type="triage",
@@ -243,6 +249,57 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
             tools=tools,
             model_override=None
         )
+        
+        # Store agent classes for handoffs
+        self.analysis_agent_class = AnalysisAgent
+        self.update_agent_class = UpdateAgent
+    
+    async def process_and_handoff(self, result: TriageOutput, workspace_context: WorkspaceContext) -> Dict[str, Any]:
+        """
+        Process the triage result and perform handoff if needed.
+        
+        Args:
+            result: The triage result
+            workspace_context: The workspace context
+            
+        Returns:
+            Dictionary with handoff results
+        """
+        # Process the result
+        if hasattr(self.hooks_class, "process_result"):
+            await self.hooks_class().process_result(workspace_context, result)
+        
+        # Determine if handoff is needed
+        if result.processed and result.workflow:
+            if result.workflow == "enhance":
+                logger.info(f"Handing off to Update Agent for enhancement")
+                return await self.__class__.handoff_to(
+                    self.update_agent_class,
+                    context=workspace_context,
+                    input_data={
+                        "workflow": "enhance",
+                        "story_id": result.story_id,
+                        "workspace_id": result.workspace_id
+                    }
+                )
+            elif result.workflow in ["analyse", "analyze"]:
+                logger.info(f"Handing off to Analysis Agent for analysis")
+                return await self.__class__.handoff_to(
+                    self.analysis_agent_class,
+                    context=workspace_context,
+                    input_data={
+                        "workflow": "analyse",
+                        "story_id": result.story_id,
+                        "workspace_id": result.workspace_id
+                    }
+                )
+        
+        # No handoff needed
+        return {
+            "status": "success",
+            "result": result,
+            "handoff": None
+        }
     
     async def run_simplified(self, webhook_data: Dict[str, Any], workspace_context: WorkspaceContext) -> Dict[str, Any]:
         """
@@ -370,6 +427,18 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
         # Process the result using the base agent's method
         processed_result = self._process_result(result, workspace_context)
         
+        # Try to perform handoff if appropriate
+        if processed and workflow:
+            try:
+                handoff_result = await self.process_and_handoff(result, workspace_context)
+                if handoff_result and handoff_result.get("status") == "success":
+                    logger.info(f"Successfully handed off to {handoff_result.get('handoff', {}).get('target', 'unknown agent')}")
+                    # Add handoff info to the result
+                    processed_result["handoff"] = handoff_result.get("handoff")
+            except Exception as e:
+                logger.error(f"Error during handoff: {str(e)}")
+                # Continue with the regular result
+        
         return processed_result
 
 
@@ -377,7 +446,6 @@ class TriageAgent(BaseAgent[TriageOutput, Dict[str, Any]]):
 def get_triage_model() -> str:
     """Get the appropriate model for the triage agent."""
     # Try environment variable first
-    import os
     model = os.environ.get("MODEL_TRIAGE")
     if model:
         return model
@@ -414,6 +482,14 @@ def create_triage_agent() -> Agent:
         )
     ]
     
+    # Import the analysis and update agents for handoffs
+    from shortcut_agents.analysis.analysis_agent import create_analysis_agent
+    from shortcut_agents.update.update_agent import create_update_agent
+    
+    # Create the handoff agents
+    analysis_agent = create_analysis_agent()
+    update_agent = create_update_agent()
+    
     # Create the agent with proper configuration
     agent = Agent(
         name="Triage Agent",
@@ -422,7 +498,9 @@ def create_triage_agent() -> Agent:
         model_settings=ModelSettings(
             temperature=0.2  # Low temperature for consistent, predictable responses
         ),
-        tools=tools
+        tools=tools,
+        output_type=TriageOutput,
+        handoffs=[analysis_agent, update_agent]  # Add handoffs to the agent
     )
     
     return agent
@@ -451,23 +529,57 @@ async def process_webhook(webhook_data: Dict[str, Any], workspace_context: Works
     )
     
     try:
-        # Create a new TriageAgent instance
-        agent = TriageAgent()
+        # Check if OpenAI API key is available
+        if os.environ.get("OPENAI_API_KEY") is None:
+            logger.warning("OpenAI API key not found, using simplified triage process")
+            # Create a new TriageAgent instance
+            agent = TriageAgent()
+            return await agent.run_simplified(webhook_data, workspace_context)
+        
+        # Create the triage agent using the SDK
+        triage_agent = create_triage_agent()
         
         # Log which implementation we're using
-        logger.info("Running triage agent using OpenAI Agent SDK")
+        logger.info("Running triage agent using OpenAI Agent SDK with handoffs")
         
-        # Run the agent with tracing
+        # Convert webhook data to JSON string if needed
+        input_data = webhook_data
+        if not isinstance(webhook_data, str):
+            input_data = json.dumps(webhook_data)
+        
+        # Run the agent with tracing using the SDK Runner
         with trace(trace_id=trace_id):
-            # Use the simplified implementation for now
-            # In the future, we can switch to the full SDK implementation
-            result = await agent.run_simplified(webhook_data, workspace_context)
+            # Use the full SDK implementation with handoffs
+            result = await Runner.run(
+                starting_agent=triage_agent,
+                input=input_data,
+                context=workspace_context,
+                run_config=run_config
+            )
             
-            # Log the triage decision
-            workflow = result.get("workflow")
-            logger.info(f"Triage decision: {workflow or 'skip processing'}")
-            
-            return result
+            # Extract the final output from the result
+            if hasattr(result, "final_output"):
+                # Get the final output from the SDK result
+                final_output = result.final_output
+                
+                # Convert to dictionary if needed
+                if hasattr(final_output, "model_dump") and callable(final_output.model_dump):
+                    result_dict = final_output.model_dump()
+                elif hasattr(final_output, "dict") and callable(final_output.dict):
+                    result_dict = final_output.dict()
+                else:
+                    result_dict = vars(final_output) if hasattr(final_output, "__dict__") else final_output
+                
+                # Log the triage decision
+                workflow = result_dict.get("workflow")
+                logger.info(f"Triage decision: {workflow or 'skip processing'}")
+                
+                return result_dict
+            else:
+                # Fallback to simplified implementation if we can't extract the result
+                logger.warning("Could not extract final output from SDK result, falling back to simplified implementation")
+                agent = TriageAgent()
+                return await agent.run_simplified(webhook_data, workspace_context)
     except Exception as e:
         logger.error(f"Error in triage: {str(e)}")
         # Print the full traceback for debugging

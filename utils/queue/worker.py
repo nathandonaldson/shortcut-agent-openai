@@ -388,31 +388,25 @@ class TaskWorker:
         Process a triage task.
         
         Args:
-            task: Triage task
-            context: Workspace context
+            task: The task to process
+            context: The workspace context
             
         Returns:
-            Triage result
+            Processing result
         """
+        # Extract webhook data from task
+        webhook_data = task.data.get("webhook_data", {})
+        
+        # Log the webhook data
         logger.info(f"Processing triage task for story {context.story_id}")
         
-        # Get story data if not in context
-        if not context.story_data:
-            logger.info(f"Fetching story data for {context.story_id}")
-            story_data = await get_story_details(context.story_id, context.api_key)
-            context.set_story_data(story_data)
-        
-        # Process with triage agent
-        webhook_data = task.payload.get("webhook_data", {})
-        
-        # Use full triage agent with SDK
-        logger.info("Using full triage agent with OpenAI SDK for task processing")
-        from shortcut_agents.triage.triage_agent import create_triage_agent
+        # Use the triage agent to process the webhook
+        from shortcut_agents.triage.triage_agent import create_triage_agent, process_webhook
         agent = create_triage_agent()
         
         try:
-            # Run full agent with SDK for proper integration
-            result = await agent.run(webhook_data, context)
+            # Use the process_webhook function instead of calling run directly on the agent
+            result = await process_webhook(webhook_data, context)
             
             # Schedule follow-up tasks based on the workflow type
             if context.workflow_type == WorkflowType.ENHANCE:
